@@ -1,0 +1,71 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; }
+.container { max-width: 900px; margin: 0 auto; padding: 1rem; }
+h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: #f1f5f9; }
+h2 { font-size: 1.2rem; margin-bottom: 0.75rem; color: #94a3b8; }
+a { color: #60a5fa; text-decoration: none; }
+.back-link { display: inline-block; margin-bottom: 1rem; font-size: 0.9rem; }
+.muted { color: #64748b; font-size: 0.85rem; }
+.hint { color: #64748b; font-size: 0.8rem; margin-top: 0.5rem; text-align: center; }
+
+.card { background: #1e293b; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; border: 1px solid #334155; }
+
+input, select { display: block; width: 100%; padding: 0.6rem; margin-bottom: 0.75rem; border: 1px solid #475569; border-radius: 6px; background: #0f172a; color: #e2e8f0; font-size: 0.95rem; }
+input::placeholder { color: #64748b; }
+
+.btn { display: inline-block; padding: 0.6rem 1.2rem; border: none; border-radius: 6px; font-size: 0.95rem; cursor: pointer; transition: all 0.2s; margin: 0.25rem; }
+.btn-primary { background: #2563eb; color: #fff; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-secondary { background: #334155; color: #e2e8f0; }
+.btn-secondary:hover { background: #475569; }
+.btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
+.btn-active { background: #16a34a; color: #fff; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+
+.home { text-align: center; padding: 4rem 1rem; }
+.home h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+.home p { color: #94a3b8; margin-bottom: 2rem; }
+.home-nav { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+.home-nav .btn { padding: 1rem 2rem; font-size: 1.1rem; }
+
+.mission-item { padding: 0.75rem; border: 1px solid #334155; border-radius: 6px; margin-bottom: 0.5rem; cursor: pointer; transition: background 0.2s; }
+.mission-item:hover { background: #1e293b; }
+
+.badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+.badge.active { background: #16a34a; color: #fff; }
+.badge.completed { background: #64748b; color: #fff; }
+
+.draw-info { margin-top: 0.75rem; padding: 0.75rem; background: #0f172a; border-radius: 6px; }
+
+.stats-bar { display: flex; gap: 1rem; flex-wrap: wrap; padding: 0.75rem; background: #1e293b; border-radius: 8px; margin-bottom: 0.75rem; font-size: 0.85rem; }
+.stats-bar span { padding: 0.2rem 0.5rem; border-radius: 4px; }
+.stat-pendiente { color: #94a3b8; }
+.stat-buscando { color: #eab308; }
+.stat-revisado { color: #22c55e; }
+.stat-pendiente strong { color: #94a3b8; }
+.stat-buscando strong { color: #eab308; }
+.stat-revisado strong { color: #22c55e; }
+
+.searcher-list { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.searcher-chip { display: flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.6rem; border: 1px solid; border-radius: 20px; font-size: 0.8rem; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+.searcher-id { margin-bottom: 0.5rem; }
+
+.toolbar { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+
+.legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.5rem; font-size: 0.8rem; }
+.legend span { display: flex; align-items: center; gap: 0.25rem; }
+
+.toggle-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; font-size: 0.9rem; cursor: pointer; }
+.toggle-row input[type=checkbox] { width: auto; margin: 0; }
+
+.toggle-tabs { display: flex; gap: 0.25rem; margin-bottom: 0.75rem; }
+
+.share-card { border-color: #2563eb; }
+.share-url { font-family: monospace; font-size: 0.85rem; background: #0f172a; padding: 0.5rem; border-radius: 4px; word-break: break-all; margin-bottom: 0.5rem; }
+.keyword-share { margin-top: 0.5rem; font-size: 0.9rem; }
+.keyword-share strong { color: #eab308; }
+
+.error { color: #ef4444; font-size: 0.85rem; margin-top: -0.5rem; margin-bottom: 0.75rem; }
+
+.share-actions { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
