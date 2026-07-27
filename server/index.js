@@ -25,7 +25,8 @@ function pointInPolygon(point, polygon) {
   return inside;
 }
 
-function polygonToSectors(polygon, cellSizeDeg = 0.001) {
+function polygonToSectors(polygon, mode = 'bosque', subZones = []) {
+  const cellSize = mode === 'urbano' ? 0.002 : 0.001;
   const lats = polygon.map(p => p[0]);
   const lngs = polygon.map(p => p[1]);
   const minLat = Math.min(...lats);
@@ -33,18 +34,27 @@ function polygonToSectors(polygon, cellSizeDeg = 0.001) {
   const minLng = Math.min(...lngs);
   const maxLng = Math.max(...lngs);
 
+  function getSectorType(center) {
+    for (const z of subZones) {
+      if (pointInPolygon(center, z.polygon)) return z.type === 'verde' ? 'grid' : 'street';
+    }
+    return mode === 'urbano' ? 'street' : 'grid';
+  }
+
   const sectors = [];
-  for (let lat = minLat; lat < maxLat; lat += cellSizeDeg) {
-    for (let lng = minLng; lng < maxLng; lng += cellSizeDeg) {
-      const centerLat = lat + cellSizeDeg / 2;
-      const centerLng = lng + cellSizeDeg / 2;
+  for (let lat = minLat; lat < maxLat; lat += cellSize) {
+    for (let lng = minLng; lng < maxLng; lng += cellSize) {
+      const centerLat = +(lat + cellSize / 2).toFixed(6);
+      const centerLng = +(lng + cellSize / 2).toFixed(6);
       if (pointInPolygon([centerLat, centerLng], polygon)) {
-        const row = Math.round((lat - minLat) / cellSizeDeg);
-        const col = Math.round((lng - minLng) / cellSizeDeg);
+        const row = Math.round((lat - minLat) / cellSize);
+        const col = Math.round((lng - minLng) / cellSize);
+        const type = getSectorType([centerLat, centerLng]);
         sectors.push({
-          id: `${row}-${col}`,
-          bounds: JSON.stringify([[lat, lng], [lat + cellSizeDeg, lng + cellSizeDeg]]),
+          id: `${type}-${row}-${col}`,
+          bounds: JSON.stringify([[lat, lng], [lat + cellSize, lng + cellSize]]),
           center: JSON.stringify([centerLat, centerLng]),
+          sector_type: type,
         });
       }
     }
@@ -57,7 +67,7 @@ app.get('/api/missions', (req, res) => {
   res.json(missions.map(m => ({
     id: m.id, title: m.title, description: m.description,
     polygon: JSON.parse(m.polygon), status: m.status,
-    has_keyword: !!m.require_keyword, created_at: m.created_at
+    has_keyword: !!m.require_keyword, mode: m.mode, created_at: m.created_at
   })));
 });
 
@@ -68,21 +78,23 @@ app.get('/api/missions/:id', (req, res) => {
   const searchers = db.prepare('SELECT * FROM searchers WHERE mission_id = ?').all(mission.id);
   const sectors = db.prepare('SELECT * FROM sectors WHERE mission_id = ?').all(mission.id);
   const { id, title, description, polygon, cell_size, status, created_at } = mission;
-  res.json({ id, title, description, polygon, cell_size, status, created_at,
+  res.json({ id, title, description, polygon, cell_size, status, created_at, mode: mission.mode,
+    sub_zones: JSON.parse(mission.sub_zones || '[]'),
     has_keyword: !!mission.require_keyword, searchers, sectors });
 });
 
 app.post('/api/missions', (req, res) => {
-  const { title, description, polygon, cellSize = 0.001, keyword, requireKeyword } = req.body;
+  const { title, description, polygon, keyword, requireKeyword, mode = 'bosque', subZones = [] } = req.body;
   const id = uuidv4();
   const rk = requireKeyword && keyword ? 1 : 0;
-  db.prepare('INSERT INTO missions (id, title, description, polygon, cell_size, status, keyword, require_keyword) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(id, title, description || '', JSON.stringify(polygon), cellSize, 'active', rk ? keyword : null, rk);
+  const sz = JSON.stringify(subZones);
+  db.prepare('INSERT INTO missions (id, title, description, polygon, cell_size, status, keyword, require_keyword, mode, sub_zones) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, title, description || '', JSON.stringify(polygon), mode === 'urbano' ? 0.002 : 0.001, 'active', rk ? keyword : null, rk, mode, sz);
 
-  const sectors = polygonToSectors(polygon, cellSize);
-  const insertSector = db.prepare('INSERT OR IGNORE INTO sectors (id, mission_id, bounds, center, status) VALUES (?, ?, ?, ?, ?)');
+  const sectors = polygonToSectors(polygon, mode, subZones);
+  const insertSector = db.prepare('INSERT OR IGNORE INTO sectors (id, mission_id, bounds, center, status, sector_type) VALUES (?, ?, ?, ?, ?, ?)');
   const txn = db.transaction(() => {
     for (const s of sectors) {
-      insertSector.run(s.id, id, s.bounds, s.center, 'pendiente');
+      insertSector.run(s.id, id, s.bounds, s.center, 'pendiente', s.sector_type);
     }
   });
   txn();
@@ -90,7 +102,8 @@ app.post('/api/missions', (req, res) => {
   const m = db.prepare('SELECT * FROM missions WHERE id = ?').get(id);
   m.polygon = JSON.parse(m.polygon);
   const resBody = { id: m.id, title: m.title, description: m.description, polygon: m.polygon,
-    cell_size: m.cell_size, status: m.status, created_at: m.created_at,
+    cell_size: m.cell_size, status: m.status, created_at: m.created_at, mode: m.mode,
+    sub_zones: JSON.parse(m.sub_zones || '[]'),
     has_keyword: !!m.require_keyword, keyword: rk ? keyword : undefined };
   io.emit('mission:created', resBody);
   res.json(resBody);
@@ -115,7 +128,7 @@ app.post('/api/missions/:id/join', (req, res) => {
 app.get('/api/missions/:id/info', (req, res) => {
   const m = db.prepare('SELECT id, title, description, require_keyword, status FROM missions WHERE id = ?').get(req.params.id);
   if (!m) return res.status(404).json({ error: 'Mision no encontrada' });
-  res.json({ id: m.id, title: m.title, description: m.description, has_keyword: !!m.require_keyword, status: m.status });
+  res.json({ id: m.id, title: m.title, description: m.description, has_keyword: !!m.require_keyword, mode: m.mode, status: m.status });
 });
 
 app.get('/api/missions/:id/state', (req, res) => {
@@ -125,7 +138,9 @@ app.get('/api/missions/:id/state', (req, res) => {
   const searchers = db.prepare('SELECT * FROM searchers WHERE mission_id = ?').all(mission.id);
   const sectors = db.prepare('SELECT * FROM sectors WHERE mission_id = ?').all(mission.id);
   const { id, title, description, polygon, cell_size, status, created_at } = mission;
-  res.json({ mission: { id, title, description, polygon, cell_size, status, created_at, has_keyword: !!mission.require_keyword },
+  res.json({ mission: { id, title, description, polygon, cell_size, status, created_at,
+    mode: mission.mode, sub_zones: JSON.parse(mission.sub_zones || '[]'),
+    has_keyword: !!mission.require_keyword },
     searchers, sectors: sectors.map(s => ({ ...s, bounds: JSON.parse(s.bounds), center: JSON.parse(s.center) })) });
 });
 

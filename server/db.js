@@ -11,6 +11,9 @@ function addColumn(table, column, def) {
 }
 addColumn('missions', 'keyword', 'TEXT');
 addColumn('missions', 'require_keyword', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('missions', 'mode', 'TEXT NOT NULL DEFAULT \'bosque\'');
+addColumn('missions', 'sub_zones', 'TEXT');
+addColumn('sectors', 'sector_type', 'TEXT NOT NULL DEFAULT \'grid\'');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS missions (
@@ -22,6 +25,8 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'active',
     keyword TEXT,
     require_keyword INTEGER NOT NULL DEFAULT 0,
+    mode TEXT NOT NULL DEFAULT 'bosque',
+    sub_zones TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -40,6 +45,7 @@ db.exec(`
     bounds TEXT NOT NULL,
     center TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pendiente',
+    sector_type TEXT NOT NULL DEFAULT 'grid',
     searched_by TEXT,
     timestamp TEXT,
     PRIMARY KEY (id, mission_id),

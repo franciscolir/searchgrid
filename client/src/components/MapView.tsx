@@ -17,6 +17,7 @@ interface MapViewProps {
   currentLocation?: [number, number];
   height?: string;
   interactive?: boolean;
+  subZonesOverlay?: { polygon: [number, number][]; type: 'verde' | 'poblado' }[];
 }
 
 export default function MapView(props: MapViewProps) {
@@ -43,6 +44,7 @@ export default function MapView(props: MapViewProps) {
     }).addTo(map);
     sectorLayer.current.addTo(map);
     searcherLayer.current.addTo(map);
+    subZoneLayer.current.addTo(map);
     if (props.interactive !== false) {
       map.on('click', (e: L.LeafletMouseEvent) => {
         if (props.drawMode) {
@@ -100,7 +102,7 @@ export default function MapView(props: MapViewProps) {
     sectorLayer.current.clearLayers();
     sectorMap.current.clear();
     for (const s of props.sectors || []) {
-      const style = getSectorStyle(s.status);
+      const style = getSectorStyle(s.status, s.sector_type);
       const rect = L.rectangle(s.bounds as any, {
         ...style,
         interactive: !!props.onSectorClick,
@@ -112,6 +114,18 @@ export default function MapView(props: MapViewProps) {
       sectorMap.current.set(s.id, rect);
     }
   }, [props.sectors, props.onSectorClick]);
+
+  const subZoneLayer = useRef<L.LayerGroup>(L.layerGroup());
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    subZoneLayer.current.clearLayers();
+    for (const z of props.subZonesOverlay || []) {
+      const c = z.type === 'verde' ? '#22c55e' : '#eab308';
+      L.polygon(z.polygon as any, { color: c, weight: 2, fillColor: c, fillOpacity: 0.15, dashArray: '6,4' }).addTo(subZoneLayer.current);
+    }
+    subZoneLayer.current.addTo(map);
+  }, [props.subZonesOverlay]);
 
   useEffect(() => {
     const map = mapRef.current;
