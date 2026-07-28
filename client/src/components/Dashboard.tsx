@@ -19,6 +19,8 @@ export default function Dashboard({ id }: { id?: string }) {
   const [copied, setCopied] = useState(false);
   const [stats, setStats] = useState({ total: 0, pendiente: 0, buscando: 0, revisado: 0 });
   const [creating, setCreating] = useState(false);
+  const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
+  const [drawMode, setDrawMode] = useState<'polygon' | 'zone_poblado' | 'zone_verde' | null>(null);
 
   useEffect(() => {
     fetch(`${API}/missions`).then(r => r.json()).then(setMissions).catch(() => {});
@@ -89,10 +91,16 @@ export default function Dashboard({ id }: { id?: string }) {
     return (
       <div class="dashboard-creating">
         <div class="map-area">
-          <MapView center={[-33.4489, -70.6693]} zoom={13} interactive={true} />
+          <MapView center={[-33.4489, -70.6693]} zoom={13} interactive={true}
+            drawMode={!!drawMode} drawPoints={drawPoints}
+            onDrawPoint={(pt) => setDrawPoints(prev => [...prev, pt])} />
         </div>
         <div class="wizard-area">
-          <CreateWizard onComplete={handleWizardComplete} onCancel={() => setCreating(false)} />
+          <CreateWizard onComplete={handleWizardComplete} onCancel={() => setCreating(false)}
+            drawPoints={drawPoints} drawMode={drawMode}
+            onStartDraw={(mode, clear) => { setDrawMode(mode); if (clear) setDrawPoints([]); }}
+            onFinishDraw={() => { setDrawPoints([]); setDrawMode(null); }}
+            onClearDraw={() => setDrawPoints([])} />
         </div>
       </div>
     );

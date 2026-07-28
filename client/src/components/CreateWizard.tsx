@@ -4,45 +4,33 @@ import { REGIONS, getCommunes } from '../data/chile'
 interface Props {
   onComplete: (data: { title: string, polygon: [number, number][], zones: { polygon: [number, number][], type: 'poblado' | 'verde' }[] }) => void
   onCancel: () => void
+  drawPoints: [number, number][]
+  drawMode: 'polygon' | 'zone_poblado' | 'zone_verde' | null
+  onStartDraw: (mode: 'polygon' | 'zone_poblado' | 'zone_verde', clear: boolean) => void
+  onFinishDraw: () => void
+  onClearDraw: () => void
 }
 
 type Step = 'location' | 'polygon' | 'zones' | 'result'
 
-export default function CreateWizard({ onComplete, onCancel }: Props) {
+export default function CreateWizard({ onComplete, onCancel, drawPoints, drawMode, onStartDraw, onFinishDraw, onClearDraw }: Props) {
   const [step, setStep] = useState<Step>('location')
   const [region, setRegion] = useState('')
   const [commune, setCommune] = useState('')
   const [title, setTitle] = useState('')
   const [polygon, setPolygon] = useState<[number, number][]>([])
   const [zones, setZones] = useState<{ polygon: [number, number][], type: 'poblado' | 'verde' }[]>([])
-  const [drawMode, setDrawMode] = useState(false)
-  const [zoneMode, setZoneMode] = useState<'poblado' | 'verde' | null>(null)
-  const [currentPoints, setCurrentPoints] = useState<[number, number][]>([])
   const [sectorCount, setSectorCount] = useState(0)
 
-  function handleMapClick(pt: [number, number]) {
-    if (step === 'location') {
-      // Click on map sets approximate location
-    }
-    if (step === 'polygon' && drawMode) {
-      setCurrentPoints(prev => [...prev, pt])
-    }
-    if (step === 'zones' && zoneMode && drawMode) {
-      setCurrentPoints(prev => [...prev, pt])
-    }
-  }
-
   function finishDraw() {
-    if (step === 'polygon' && currentPoints.length >= 3) {
-      setPolygon(currentPoints)
-      setCurrentPoints([])
-      setDrawMode(false)
+    if (step === 'polygon' && drawPoints.length >= 3) {
+      setPolygon(drawPoints)
+      onFinishDraw()
     }
-    if (step === 'zones' && zoneMode && currentPoints.length >= 3) {
-      setZones(prev => [...prev, { polygon: currentPoints, type: zoneMode }])
-      setCurrentPoints([])
-      setDrawMode(false)
-      setZoneMode(null)
+    if (step === 'zones' && drawPoints.length >= 3) {
+      const type = drawMode === 'zone_poblado' ? 'poblado' : 'verde'
+      setZones(prev => [...prev, { polygon: drawPoints, type }])
+      onFinishDraw()
     }
   }
 
@@ -50,6 +38,12 @@ export default function CreateWizard({ onComplete, onCancel }: Props) {
     const count = 1 + zones.reduce((s, z) => s + Math.max(1, Math.floor(polygonArea(z.polygon) / 10000)), 0)
     setSectorCount(count)
     setStep('result')
+  }
+
+  function goBack() {
+    const prev = { location: 'location', polygon: 'location', zones: 'polygon', result: 'zones' }[step] as Step
+    setStep(prev)
+    if (prev !== 'polygon') onFinishDraw()
   }
 
   function confirmResult() {
@@ -60,9 +54,8 @@ export default function CreateWizard({ onComplete, onCancel }: Props) {
     <div class="wizard">
       <div class="wizard-header">
         <h2>{step === 'location' ? '1. Ubicacion' : step === 'polygon' ? '2. Area de busqueda' : step === 'zones' ? '3. Zonas' : '4. Resumen'}</h2>
-        {step !== 'location' && <button class="btn btn-sm" onClick={() => setStep({ location: 'polygon', polygon: 'location', zones: 'polygon', result: 'zones' }[step] as Step)}>&larr; Volver</button>}
+        {step !== 'location' && <button class="btn btn-sm" onClick={goBack}>&larr; Volver</button>}
       </div>
-
       <div class="wizard-body">
         {step === 'location' && (
           <>
@@ -87,12 +80,12 @@ export default function CreateWizard({ onComplete, onCancel }: Props) {
           <>
             <p class="hint" style="text-align:left">Dibuja el area de busqueda</p>
             {!drawMode ? (
-              <button class="btn btn-primary" onClick={() => { setDrawMode(true); setCurrentPoints([]) }}>Dibujar poligono</button>
+              <button class="btn btn-primary" onClick={() => onStartDraw('polygon', true)}>Dibujar poligono</button>
             ) : (
               <>
-                <p class="hint">{currentPoints.length} puntos marcados. Haz clic en el mapa para agregar vertices.</p>
-                {currentPoints.length >= 3 && <button class="btn btn-primary" onClick={finishDraw}>Finalizar poligono</button>}
-                <button class="btn btn-sm" onClick={() => setCurrentPoints([])}>Limpiar</button>
+                <p class="hint">{drawPoints.length} puntos marcados. Haz clic en el mapa para agregar vertices.</p>
+                {drawPoints.length >= 3 && <button class="btn btn-primary" onClick={finishDraw}>Finalizar poligono</button>}
+                <button class="btn btn-sm" onClick={onClearDraw}>Limpiar</button>
               </>
             )}
             {polygon.length >= 3 && !drawMode && (
@@ -105,11 +98,11 @@ export default function CreateWizard({ onComplete, onCancel }: Props) {
           <>
             <p class="hint" style="text-align:left">Marca las zonas dentro del area:</p>
             <div class="zone-legend">
-              <span class="zone-btn poblado" onClick={() => { setZoneMode('poblado'); setDrawMode(true); setCurrentPoints([]) }}>+ Zona poblada</span>
-              <span class="zone-btn verde" onClick={() => { setZoneMode('verde'); setDrawMode(true); setCurrentPoints([]) }}>+ Parque / Bosque</span>
+              <span class="zone-btn poblado" onClick={() => onStartDraw('zone_poblado', true)}>+ Zona poblada</span>
+              <span class="zone-btn verde" onClick={() => onStartDraw('zone_verde', true)}>+ Parque / Bosque</span>
             </div>
-            {drawMode && zoneMode && (
-              <p class="hint">{currentPoints.length} pts. {currentPoints.length >= 3 && <button class="btn btn-sm btn-primary" onClick={finishDraw}>Cerrar zona</button>}</p>
+            {drawMode && (
+              <p class="hint">{drawPoints.length} pts. {drawPoints.length >= 3 && <button class="btn btn-sm btn-primary" onClick={finishDraw}>Cerrar zona</button>}</p>
             )}
             {zones.length > 0 && (
               <div class="zone-list">
