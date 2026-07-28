@@ -175,7 +175,7 @@ export default function Dashboard({ id }: { id?: string }) {
           </div>
         </div>
       )}
-      {mission?.mode && <p class="muted" style="margin-bottom:0.5rem">Modo: <strong>{mission.mode === 'urbano' ? 'Urbano' : 'Bosque'}</strong> {mission.street_count > 0 && `| ${mission.street_count} calles`}</p>}
+      {mission?.mode && <p class="muted" style="margin-bottom:0.5rem">Modo: <strong>{mission.mode === 'urbano' ? 'Urbano' : 'Bosque'}</strong> {mission.zone_count > 0 && `| ${mission.zone_count} sectores`}</p>}
       <div class="stats-bar">
         <span>Total: <strong>{stats.total}</strong></span>
         <span class="stat-pendiente">Pendiente: <strong>{stats.pendiente}</strong></span>

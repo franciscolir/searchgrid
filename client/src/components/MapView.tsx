@@ -144,17 +144,19 @@ export default function MapView(props: MapViewProps) {
         html: '<div style="width:20px;height:20px;border-radius:50%;background:#3b82f6;border:3px solid #fff;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>',
         iconSize: [20, 20], iconAnchor: [10, 10],
       });
+      const currentPts = [...props.editablePolygon];
       props.editablePolygon.forEach((pt, i) => {
         const m = L.marker(pt as any, { icon: circleIcon, draggable: true }).addTo(map);
         m.on('dragstart', () => { if (mapRef.current) mapRef.current.dragging.disable(); });
         m.on('drag', () => {
           const pos = m.getLatLng();
-          const newPts = [...(props.editablePolygon || [])];
-          newPts[i] = [pos.lat, pos.lng];
-          if (editPolyRef.current) editPolyRef.current.setLatLngs(newPts as any);
-          props.onPolygonEdit?.(newPts);
+          currentPts[i] = [pos.lat, pos.lng];
+          if (editPolyRef.current) editPolyRef.current.setLatLngs(currentPts as any);
         });
-        m.on('dragend', () => { if (mapRef.current) mapRef.current.dragging.enable(); });
+        m.on('dragend', () => {
+          if (mapRef.current) mapRef.current.dragging.enable();
+          props.onPolygonEdit?.(currentPts.map(p => [p[0], p[1]] as [number, number]));
+        });
         editMarkersRef.current.push(m);
       });
     }
@@ -164,9 +166,10 @@ export default function MapView(props: MapViewProps) {
     const map = mapRef.current;
     if (!map) return;
     const c = map.getContainer();
-    if (props.editing) c.style.cursor = 'default';
-    else if (props.drawMode && !props.editing) c.style.cursor = 'crosshair';
-    else c.style.cursor = '';
+    c.style.cursor = '';
+    c.onmouseenter = () => { if (props.drawMode && !props.editing) c.style.cursor = 'crosshair'; };
+    c.onmouseleave = () => { c.style.cursor = ''; };
+    return () => { c.onmouseenter = null; c.onmouseleave = null; };
   }, [props.editing, props.drawMode]);
 
   useEffect(() => {

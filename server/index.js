@@ -153,29 +153,29 @@ app.post('/api/missions', async (req, res) => {
   const sz = JSON.stringify(subZones);
   db.prepare('INSERT INTO missions (id, title, description, polygon, cell_size, status, keyword, require_keyword, mode, sub_zones) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, title, description || '', JSON.stringify(polygon), mode === 'urbano' ? 0.002 : 0.001, 'active', rk ? keyword : null, rk, mode, sz);
 
-  let sectors;
-  let streetCount = 0;
-  if (mode === 'urbano') {
-    const hash = hashPolygon(polygon);
-    const cached = db.prepare('SELECT data FROM osm_cache WHERE poly_hash = ?').get(hash);
-    let osmData = cached ? JSON.parse(cached.data) : null;
-    if (!osmData) {
-      try { osmData = await fetchOSM(polygon); } catch {}
-      if (osmData) db.prepare('INSERT OR REPLACE INTO osm_cache (poly_hash, data) VALUES (?, ?)').run(hash, JSON.stringify(osmData));
+  let sectors = [];
+  let zoneCount = 0;
+  if (subZones && subZones.length > 0) {
+    let sid = 0;
+    for (const z of subZones) {
+      const pts = z.polygon;
+      const center = polygonCentroid(pts);
+      if (z.type === 'verde') {
+        const g = polygonToSectors(pts, mode, []);
+        for (const s of g) sectors.push({ ...s, id: `grid-${sid++}` });
+      } else {
+        sectors.push({
+          id: `zone-${sid++}`,
+          bounds: JSON.stringify([pts[0], pts[pts.length - 1]]),
+          center: JSON.stringify(center),
+          sector_type: 'block',
+          nodes: JSON.stringify(pts),
+        });
+      }
+      zoneCount = sectors.length;
     }
-    if (osmData) {
-      const streets = processOSMStreets(osmData, polygon);
-      const grid = polygonToSectors(polygon, mode, subZones);
-      const used = new Set();
-      sectors = [];
-      for (const s of streets) { sectors.push(s); used.add(JSON.stringify(s.center).slice(0, 10)); }
-      for (const g of grid) { if (!used.has(JSON.stringify(g.center).slice(0, 10))) sectors.push(g); }
-      streetCount = streets.length;
-    }
-    if (!sectors || sectors.length === 0) sectors = polygonToSectors(polygon, mode, subZones);
-  } else {
-    sectors = polygonToSectors(polygon, mode, subZones);
   }
+  if (sectors.length === 0) sectors = polygonToSectors(polygon, mode, subZones);
 
   const insertSector = db.prepare('INSERT OR IGNORE INTO sectors (id, mission_id, bounds, center, status, sector_type, nodes) VALUES (?, ?, ?, ?, ?, ?, ?)');
   const txn = db.transaction(() => {
@@ -189,7 +189,7 @@ app.post('/api/missions', async (req, res) => {
   m.polygon = JSON.parse(m.polygon);
   const resBody = { id: m.id, title: m.title, description: m.description, polygon: m.polygon,
     cell_size: m.cell_size, status: m.status, created_at: m.created_at, mode: m.mode,
-    sub_zones: JSON.parse(m.sub_zones || '[]'),     street_count: streetCount,
+    sub_zones: JSON.parse(m.sub_zones || '[]'), zone_count: zoneCount,
     has_keyword: !!m.require_keyword, keyword: rk ? keyword : undefined };
   io.emit('mission:created', resBody);
   res.json(resBody);
