@@ -23,6 +23,7 @@ interface MapViewProps {
   onPolygonEdit?: (pts: [number, number][]) => void;
   mainPolygonColor?: string;
   editing?: boolean;
+  highlightSector?: string;
 }
 
 export default function MapView(props: MapViewProps) {
@@ -173,6 +174,28 @@ export default function MapView(props: MapViewProps) {
     c.onmouseleave = () => { c.style.cursor = ''; };
     return () => { c.onmouseenter = null; c.onmouseleave = null; };
   }, [props.editing, props.drawMode]);
+
+  const highlightLayer = useRef<L.LayerGroup>(L.layerGroup());
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    highlightLayer.current.clearLayers();
+    if (props.highlightSector) {
+      const s = (props.sectors || []).find(x => x.id === props.highlightSector);
+      if (s) {
+        const style: any = { color: '#fff', weight: 4, fillColor: '#fbbf24', fillOpacity: 0.3 };
+        const layer = s.sector_type === 'block' && s.nodes && s.nodes.length >= 3
+          ? L.polygon(s.nodes as any, style)
+          : s.sector_type === 'street' && s.nodes && s.nodes.length >= 2
+          ? L.polyline(s.nodes as any, style)
+          : L.rectangle(s.bounds as any, style);
+        highlightLayer.current.addTo(map);
+        highlightLayer.current.addLayer(layer);
+        const bounds = layer.getBounds();
+        if (bounds.isValid()) map.fitBounds(bounds.pad(0.3), { animate: true, duration: 0.5 });
+      }
+    }
+  }, [props.highlightSector, props.sectors]);
 
   useEffect(() => {
     const map = mapRef.current;

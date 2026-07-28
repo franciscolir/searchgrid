@@ -106,3 +106,19 @@ input::placeholder { color: #64748b; }
 .sector-num { font-weight: bold; width: 28px; color: #e2e8f0; font-size: 0.8rem; }
 .sector-status { flex: 1; color: #94a3b8; font-size: 0.7rem; text-transform: capitalize; }
 .sector-searchers { color: #60a5fa; font-size: 0.7rem; white-space: nowrap; }
+
+.searcher-layout { display: flex; height: 100vh; }
+.searcher-layout .map-area { flex: 1; min-width: 0; }
+.searcher-panel { width: 280px; flex-shrink: 0; padding: 0.5rem; background: #1e293b; border-left: 1px solid #334155; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; }
+.searcher-panel .toolbar { display: flex; gap: 0.25rem; }
+.searcher-panel .searcher-id { font-size: 0.85rem; color: #94a3b8; }
+
+.nearby-card { background: #0f172a; border-radius: 6px; padding: 0.5rem; border: 1px solid #334155; }
+.nearby-card h4 { font-size: 0.8rem; color: #eab308; margin-bottom: 0.35rem; }
+.nearby-item { display: flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.3rem; border-radius: 3px; cursor: pointer; font-size: 0.75rem; transition: background 0.2s; }
+.nearby-item:hover { background: #1e293b; }
+.nearby-item.active { background: #334155; }
+.sector-label { font-weight: bold; width: 28px; color: #e2e8f0; font-size: 0.8rem; }
+.sector-dist { color: #60a5fa; font-size: 0.7rem; }
+
+.sector-item.hl { background: #334155; outline: 1px solid #fbbf24; }
