@@ -22,6 +22,7 @@ export default function Dashboard({ id }: { id?: string }) {
   const [creating, setCreating] = useState(false);
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
   const [drawMode, setDrawMode] = useState<'polygon' | 'zone_poblado' | 'zone_verde' | null>(null);
+  const [editingPoly, setEditingPoly] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number]>([-33.4489, -70.6693]);
   const [mainPolygon, setMainPolygon] = useState<[number, number][]>([]);
   const [editablePolygon, setEditablePolygon] = useState<[number, number][]>([]);
@@ -63,13 +64,14 @@ export default function Dashboard({ id }: { id?: string }) {
   }, [sectors]);
 
   const handleWizardState = useCallback((state: {
-    step: number, region?: string, commune?: string,
+    step: number, region?: string, commune?: string, editing?: boolean,
     drawPoints?: [number, number][], drawMode?: 'polygon' | 'zone_poblado' | 'zone_verde' | null,
     polygon?: [number, number][], zones?: { polygon: [number, number][]; type: 'poblado' | 'verde' }[]
   }) => {
     if (state.step !== undefined) setWizardStep(state.step);
     if (state.drawPoints !== undefined) setDrawPoints(state.drawPoints);
-    if (state.drawMode !== undefined) setDrawMode(state.drawMode);
+    if (state.drawMode !== undefined) { setDrawMode(state.drawMode); setEditingPoly(false); }
+    if (state.editing !== undefined) setEditingPoly(state.editing);
     if (state.polygon !== undefined) { setMainPolygon(state.polygon); setEditablePolygon(state.polygon); }
     if (state.zones !== undefined) setZones(state.zones);
     if (state.region && state.commune) {
@@ -117,12 +119,13 @@ export default function Dashboard({ id }: { id?: string }) {
       <div class="dashboard-creating">
         <div class="map-area">
           <MapView center={mapCenter} zoom={13} interactive={true}
-            drawMode={!!drawMode} drawPoints={drawPoints}
+            drawMode={!!drawMode && !editingPoly} drawPoints={editingPoly ? [] : drawPoints}
             onDrawPoint={(pt) => setDrawPoints(prev => [...prev, pt])}
             mainPolygon={wizardStep >= 2 ? mainPolygon : undefined}
             mainPolygonColor="#1e3a5f"
-            editablePolygon={drawMode === 'polygon' && drawPoints.length >= 3 ? drawPoints : undefined}
-            onPolygonEdit={(pts) => setDrawPoints(pts)}
+            editing={editingPoly}
+            editablePolygon={editingPoly && mainPolygon.length >= 3 ? mainPolygon : drawMode === 'polygon' && drawPoints.length >= 3 && !editingPoly ? drawPoints : undefined}
+            onPolygonEdit={(pts) => { setMainPolygon(pts); setDrawPoints(pts); setEditablePolygon(pts); }}
             subZonesOverlay={zones.map(z => ({ polygon: z.polygon, type: z.type }))} />
         </div>
         <div class="wizard-area">

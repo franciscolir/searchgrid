@@ -9,7 +9,7 @@ interface Props {
   onStartDraw: (mode: 'polygon' | 'zone_poblado' | 'zone_verde', clear: boolean) => void
   onFinishDraw: () => void
   onClearDraw: () => void
-  onStateChange?: (state: { step: number, region?: string, commune?: string, drawPoints?: [number, number][], drawMode?: 'polygon' | 'zone_poblado' | 'zone_verde' | null, polygon?: [number, number][], zones?: { polygon: [number, number][]; type: 'poblado' | 'verde' }[] }) => void
+  onStateChange?: (state: { step: number, region?: string, commune?: string, editing?: boolean, drawPoints?: [number, number][], drawMode?: 'polygon' | 'zone_poblado' | 'zone_verde' | null, polygon?: [number, number][], zones?: { polygon: [number, number][]; type: 'poblado' | 'verde' }[] }) => void
 }
 
 type Step = 'location' | 'polygon' | 'zones' | 'result'
@@ -50,7 +50,7 @@ export default function CreateWizard({ onComplete, onCancel, drawPoints, drawMod
 
   function startEditing() {
     setEditing(true)
-    onStartDraw('polygon', false)
+    onStateChange?.({ step: 1, region, commune, editing: true, drawMode: null, drawPoints: polygon })
   }
 
   function finishWizard() {
@@ -139,7 +139,11 @@ export default function CreateWizard({ onComplete, onCancel, drawPoints, drawMod
                 {zones.map((z, i) => (
                   <span key={i} class="zone-tag" style={`background:${z.type === 'poblado' ? '#3b82f6' : '#22c55e'}`}>
                     {z.type === 'poblado' ? 'Urbano' : 'Verde'} ({z.polygon.length} pts)
-                    <span style="cursor:pointer;margin-left:4px" onClick={() => setZones(prev => prev.filter((_, j) => j !== i))}>&times;</span>
+                    <span style="cursor:pointer;margin-left:4px" onClick={() => {
+                      setZones(prev => prev.filter((_, j) => j !== i));
+                      onStateChange?.({ step: 2, drawMode: z.type === 'poblado' ? 'zone_poblado' : 'zone_verde', drawPoints: z.polygon });
+                    }} title="Editar">&bull;</span>
+                    <span style="cursor:pointer;margin-left:2px" onClick={() => setZones(prev => prev.filter((_, j) => j !== i))}>&times;</span>
                   </span>
                 ))}
               </div>

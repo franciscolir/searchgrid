@@ -22,6 +22,7 @@ interface MapViewProps {
   editablePolygon?: [number, number][];
   onPolygonEdit?: (pts: [number, number][]) => void;
   mainPolygonColor?: string;
+  editing?: boolean;
 }
 
 export default function MapView(props: MapViewProps) {
@@ -79,6 +80,11 @@ export default function MapView(props: MapViewProps) {
   }, []);
 
   useEffect(() => {
+    if (mapRef.current && props.center)
+      mapRef.current.setView(props.center, props.zoom || 13, { animate: true, duration: 0.5 });
+  }, [props.center?.join(',')]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     if (props.polygon) {
@@ -134,11 +140,13 @@ export default function MapView(props: MapViewProps) {
         color: '#3b82f6', weight: 2, fillOpacity: 0.1,
       }).addTo(map);
       const circleIcon = L.divIcon({
-        className: '', html: '<div style="width:14px;height:14px;border-radius:50%;background:#3b82f6;border:2px solid #fff;cursor:pointer"></div>',
-        iconSize: [14, 14], iconAnchor: [7, 7],
+        className: '',
+        html: '<div style="width:20px;height:20px;border-radius:50%;background:#3b82f6;border:3px solid #fff;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>',
+        iconSize: [20, 20], iconAnchor: [10, 10],
       });
       props.editablePolygon.forEach((pt, i) => {
         const m = L.marker(pt as any, { icon: circleIcon, draggable: true }).addTo(map);
+        m.on('dragstart', () => { if (mapRef.current) mapRef.current.dragging.disable(); });
         m.on('drag', () => {
           const pos = m.getLatLng();
           const newPts = [...(props.editablePolygon || [])];
@@ -146,9 +154,9 @@ export default function MapView(props: MapViewProps) {
           if (editPolyRef.current) editPolyRef.current.setLatLngs(newPts as any);
           props.onPolygonEdit?.(newPts);
         });
+        m.on('dragend', () => { if (mapRef.current) mapRef.current.dragging.enable(); });
         editMarkersRef.current.push(m);
       });
-      map.eachLayer((l: any) => { if (l.getElement && l.getElement().classList.contains('leaflet-interactive')) l.getElement().style.cursor = 'pointer'; });
     }
   }, [props.editablePolygon]);
 
@@ -156,8 +164,10 @@ export default function MapView(props: MapViewProps) {
     const map = mapRef.current;
     if (!map) return;
     const c = map.getContainer();
-    c.style.cursor = (props.editablePolygon || props.drawMode) ? 'crosshair' : '';
-  }, [props.editablePolygon, props.drawMode]);
+    if (props.editing) c.style.cursor = 'default';
+    else if (props.drawMode && !props.editing) c.style.cursor = 'crosshair';
+    else c.style.cursor = '';
+  }, [props.editing, props.drawMode]);
 
   useEffect(() => {
     const map = mapRef.current;
