@@ -18,6 +18,10 @@ interface MapViewProps {
   height?: string;
   interactive?: boolean;
   subZonesOverlay?: { polygon: [number, number][]; type: 'verde' | 'poblado' }[];
+  mainPolygon?: [number, number][];
+  editablePolygon?: [number, number][];
+  onPolygonEdit?: (pts: [number, number][]) => void;
+  mainPolygonColor?: string;
 }
 
 export default function MapView(props: MapViewProps) {
@@ -104,6 +108,56 @@ export default function MapView(props: MapViewProps) {
       );
     }
   }, [props.drawPoints]);
+
+  const mainPolyLayer = useRef<L.Polygon | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (mainPolyLayer.current) { map.removeLayer(mainPolyLayer.current); mainPolyLayer.current = null; }
+    if (props.mainPolygon && props.mainPolygon.length >= 3) {
+      mainPolyLayer.current = L.polygon(props.mainPolygon as any, {
+        color: props.mainPolygonColor || '#1e3a5f', weight: 3, fillOpacity: 0.05, dashArray: '8,4',
+      }).addTo(map);
+    }
+  }, [props.mainPolygon, props.mainPolygonColor]);
+
+  const editMarkersRef = useRef<L.Marker[]>([]);
+  const editPolyRef = useRef<L.Polygon | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    editMarkersRef.current.forEach(m => map.removeLayer(m));
+    if (editPolyRef.current) { map.removeLayer(editPolyRef.current); editPolyRef.current = null; }
+    editMarkersRef.current = [];
+    if (props.editablePolygon && props.editablePolygon.length >= 3) {
+      editPolyRef.current = L.polygon(props.editablePolygon as any, {
+        color: '#3b82f6', weight: 2, fillOpacity: 0.1,
+      }).addTo(map);
+      const circleIcon = L.divIcon({
+        className: '', html: '<div style="width:14px;height:14px;border-radius:50%;background:#3b82f6;border:2px solid #fff;cursor:pointer"></div>',
+        iconSize: [14, 14], iconAnchor: [7, 7],
+      });
+      props.editablePolygon.forEach((pt, i) => {
+        const m = L.marker(pt as any, { icon: circleIcon, draggable: true }).addTo(map);
+        m.on('drag', () => {
+          const pos = m.getLatLng();
+          const newPts = [...(props.editablePolygon || [])];
+          newPts[i] = [pos.lat, pos.lng];
+          if (editPolyRef.current) editPolyRef.current.setLatLngs(newPts as any);
+          props.onPolygonEdit?.(newPts);
+        });
+        editMarkersRef.current.push(m);
+      });
+      map.eachLayer((l: any) => { if (l.getElement && l.getElement().classList.contains('leaflet-interactive')) l.getElement().style.cursor = 'pointer'; });
+    }
+  }, [props.editablePolygon]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const c = map.getContainer();
+    c.style.cursor = (props.editablePolygon || props.drawMode) ? 'crosshair' : '';
+  }, [props.editablePolygon, props.drawMode]);
 
   useEffect(() => {
     const map = mapRef.current;

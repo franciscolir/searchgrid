@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks'
+import { useState, useEffect } from 'preact/hooks'
 import { REGIONS, getCommunes } from '../data/chile'
 
 interface Props {
@@ -9,11 +9,12 @@ interface Props {
   onStartDraw: (mode: 'polygon' | 'zone_poblado' | 'zone_verde', clear: boolean) => void
   onFinishDraw: () => void
   onClearDraw: () => void
+  onStateChange?: (state: { step: number, region?: string, commune?: string, drawPoints?: [number, number][], drawMode?: 'polygon' | 'zone_poblado' | 'zone_verde' | null, polygon?: [number, number][], zones?: { polygon: [number, number][]; type: 'poblado' | 'verde' }[] }) => void
 }
 
 type Step = 'location' | 'polygon' | 'zones' | 'result'
 
-export default function CreateWizard({ onComplete, onCancel, drawPoints, drawMode, onStartDraw, onFinishDraw, onClearDraw }: Props) {
+export default function CreateWizard({ onComplete, onCancel, drawPoints, drawMode, onStartDraw, onFinishDraw, onClearDraw, onStateChange }: Props) {
   const [step, setStep] = useState<Step>('location')
   const [region, setRegion] = useState('')
   const [commune, setCommune] = useState('')
@@ -21,11 +22,24 @@ export default function CreateWizard({ onComplete, onCancel, drawPoints, drawMod
   const [polygon, setPolygon] = useState<[number, number][]>([])
   const [zones, setZones] = useState<{ polygon: [number, number][], type: 'poblado' | 'verde' }[]>([])
   const [sectorCount, setSectorCount] = useState(0)
+  const [editing, setEditing] = useState(false)
+
+  useEffect(() => {
+    const idx = { location: 0, polygon: 1, zones: 2, result: 3 }[step]
+    onStateChange?.({ step: idx, region, commune, drawPoints, drawMode, polygon, zones })
+  }, [step, region, commune, polygon, zones])
+
+  function nextStep(s: Step) {
+    if (s === 'polygon') onStateChange?.({ step: 1, region, commune })
+    if (s === 'zones') { onFinishDraw(); setEditing(false) }
+    setStep(s)
+  }
 
   function finishDraw() {
     if (step === 'polygon' && drawPoints.length >= 3) {
       setPolygon(drawPoints)
       onFinishDraw()
+      setEditing(false)
     }
     if (step === 'zones' && drawPoints.length >= 3) {
       const type = drawMode === 'zone_poblado' ? 'poblado' : 'verde'
@@ -34,16 +48,22 @@ export default function CreateWizard({ onComplete, onCancel, drawPoints, drawMod
     }
   }
 
+  function startEditing() {
+    setEditing(true)
+    onStartDraw('polygon', false)
+  }
+
   function finishWizard() {
-    const count = 1 + zones.reduce((s, z) => s + Math.max(1, Math.floor(polygonArea(z.polygon) / 10000)), 0)
+    const count = Math.max(10, zones.reduce((s, z) => s + Math.max(1, Math.floor(polygonArea(z.polygon) / 10000)), 0))
     setSectorCount(count)
     setStep('result')
+    onFinishDraw()
   }
 
   function goBack() {
-    const prev = { location: 'location', polygon: 'location', zones: 'polygon', result: 'zones' }[step] as Step
-    setStep(prev)
-    if (prev !== 'polygon') onFinishDraw()
+    const prev = { location: '', polygon: 'location', zones: 'polygon', result: 'zones' }[step] as Step
+    if (step === 'polygon') { setPolygon([]); onClearDraw() }
+    setStep(prev || 'location')
   }
 
   function confirmResult() {
@@ -68,28 +88,38 @@ export default function CreateWizard({ onComplete, onCancel, drawPoints, drawMod
             {region && (
               <select value={commune} onChange={(e: any) => setCommune(e.target.value)}>
                 <option value="">Seleccionar comuna...</option>
-                {getCommunes(region).map(c => <option key={c} value={c}>{c}</option>)}
+                {getCommunes(region).map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
               </select>
             )}
             <p class="hint">O haz clic en el mapa para centrar la ubicacion</p>
-            <button class="btn btn-primary" disabled={!title || !commune} onClick={() => setStep('polygon')}>Siguiente &rarr;</button>
+            <button class="btn btn-primary" disabled={!title || !commune} onClick={() => nextStep('polygon')}>Siguiente &rarr;</button>
           </>
         )}
 
         {step === 'polygon' && (
           <>
-            <p class="hint" style="text-align:left">Dibuja el area de busqueda</p>
-            {!drawMode ? (
-              <button class="btn btn-primary" onClick={() => onStartDraw('polygon', true)}>Dibujar poligono</button>
+            <p class="hint" style="text-align:left">Dibuja el area de busqueda en el mapa</p>
+            {polygon.length < 3 ? (
+              !drawMode ? (
+                <button class="btn btn-primary" onClick={() => onStartDraw('polygon', true)}>Dibujar poligono</button>
+              ) : (
+                <>
+                  <p class="hint">{drawPoints.length} puntos. Haz clic en el mapa.</p>
+                  {drawPoints.length >= 3 && <button class="btn btn-primary" onClick={finishDraw}>Finalizar poligono</button>}
+                  <button class="btn btn-sm" onClick={onClearDraw}>Limpiar</button>
+                </>
+              )
             ) : (
               <>
-                <p class="hint">{drawPoints.length} puntos marcados. Haz clic en el mapa para agregar vertices.</p>
-                {drawPoints.length >= 3 && <button class="btn btn-primary" onClick={finishDraw}>Finalizar poligono</button>}
-                <button class="btn btn-sm" onClick={onClearDraw}>Limpiar</button>
+                <p class="hint">Poligono dibujado ({polygon.length} vertices).</p>
+                {!drawMode && <button class="btn" style="background:#fff;color:#1e293b" onClick={startEditing}>Volver a marcar</button>}
+                {drawMode && editing && (
+                  <>
+                    <p class="hint">Arrastra los puntos para ajustar. {drawPoints.length >= 3 && <button class="btn btn-sm btn-primary" onClick={finishDraw}>Finalizar edicion</button>}</p>
+                  </>
+                )}
+                {!drawMode && <button class="btn btn-primary" onClick={() => nextStep('zones')}>Siguiente &rarr;</button>}
               </>
-            )}
-            {polygon.length >= 3 && !drawMode && (
-              <button class="btn btn-primary" onClick={() => setStep('zones')}>Siguiente &rarr;</button>
             )}
           </>
         )}

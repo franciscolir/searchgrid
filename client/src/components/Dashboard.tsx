@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useState, useCallback } from 'preact/hooks';
 import MapView from './MapView';
 import CreateWizard from './CreateWizard';
 import { connect, joinMission, leaveMission, disconnect } from '../services/socket';
 import { Sector } from '../utils/grid';
+import { getRegionById, getCommuneCoords } from '../data/chile';
 
 const API = '/api';
 
@@ -21,6 +22,11 @@ export default function Dashboard({ id }: { id?: string }) {
   const [creating, setCreating] = useState(false);
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
   const [drawMode, setDrawMode] = useState<'polygon' | 'zone_poblado' | 'zone_verde' | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([-33.4489, -70.6693]);
+  const [mainPolygon, setMainPolygon] = useState<[number, number][]>([]);
+  const [editablePolygon, setEditablePolygon] = useState<[number, number][]>([]);
+  const [zones, setZones] = useState<{ polygon: [number, number][]; type: 'poblado' | 'verde' }[]>([]);
+  const [wizardStep, setWizardStep] = useState(0);
 
   useEffect(() => {
     fetch(`${API}/missions`).then(r => r.json()).then(setMissions).catch(() => {});
@@ -55,6 +61,25 @@ export default function Dashboard({ id }: { id?: string }) {
     const revisado = sectors.filter(s => s.status === 'revisado').length;
     setStats({ total, pendiente, buscando, revisado });
   }, [sectors]);
+
+  const handleWizardState = useCallback((state: {
+    step: number, region?: string, commune?: string,
+    drawPoints?: [number, number][], drawMode?: 'polygon' | 'zone_poblado' | 'zone_verde' | null,
+    polygon?: [number, number][], zones?: { polygon: [number, number][]; type: 'poblado' | 'verde' }[]
+  }) => {
+    if (state.step !== undefined) setWizardStep(state.step);
+    if (state.drawPoints !== undefined) setDrawPoints(state.drawPoints);
+    if (state.drawMode !== undefined) setDrawMode(state.drawMode);
+    if (state.polygon !== undefined) { setMainPolygon(state.polygon); setEditablePolygon(state.polygon); }
+    if (state.zones !== undefined) setZones(state.zones);
+    if (state.region && state.commune) {
+      const c = getCommuneCoords(state.region, state.commune);
+      if (c) setMapCenter([c.lat, c.lng]);
+    } else if (state.region) {
+      const r = getRegionById(state.region);
+      if (r) setMapCenter([r.lat, r.lng]);
+    }
+  }, []);
 
   async function handleWizardComplete(data: { title: string, polygon: [number, number][], zones: { polygon: [number, number][], type: 'poblado' | 'verde' }[] }) {
     const subZones = data.zones.map(z => ({ polygon: z.polygon, type: z.type === 'poblado' ? 'poblado' as const : 'verde' as const }));
@@ -91,16 +116,22 @@ export default function Dashboard({ id }: { id?: string }) {
     return (
       <div class="dashboard-creating">
         <div class="map-area">
-          <MapView center={[-33.4489, -70.6693]} zoom={13} interactive={true}
+          <MapView center={mapCenter} zoom={13} interactive={true}
             drawMode={!!drawMode} drawPoints={drawPoints}
-            onDrawPoint={(pt) => setDrawPoints(prev => [...prev, pt])} />
+            onDrawPoint={(pt) => setDrawPoints(prev => [...prev, pt])}
+            mainPolygon={wizardStep >= 2 ? mainPolygon : undefined}
+            mainPolygonColor="#1e3a5f"
+            editablePolygon={drawMode === 'polygon' && drawPoints.length >= 3 ? drawPoints : undefined}
+            onPolygonEdit={(pts) => setDrawPoints(pts)}
+            subZonesOverlay={zones.map(z => ({ polygon: z.polygon, type: z.type }))} />
         </div>
         <div class="wizard-area">
           <CreateWizard onComplete={handleWizardComplete} onCancel={() => setCreating(false)}
             drawPoints={drawPoints} drawMode={drawMode}
             onStartDraw={(mode, clear) => { setDrawMode(mode); if (clear) setDrawPoints([]); }}
             onFinishDraw={() => { setDrawPoints([]); setDrawMode(null); }}
-            onClearDraw={() => setDrawPoints([])} />
+            onClearDraw={() => setDrawPoints([])}
+            onStateChange={handleWizardState} />
         </div>
       </div>
     );
@@ -141,7 +172,7 @@ export default function Dashboard({ id }: { id?: string }) {
           </div>
         </div>
       )}
-      {mission?.mode && <p class="muted" style="margin-bottom:0.5rem">Modo: <strong>{mission.mode === 'urbano' ? 'Urbano' : 'Bosque'}</strong></p>}
+      {mission?.mode && <p class="muted" style="margin-bottom:0.5rem">Modo: <strong>{mission.mode === 'urbano' ? 'Urbano' : 'Bosque'}</strong> {mission.street_count > 0 && `| ${mission.street_count} calles`}</p>}
       <div class="stats-bar">
         <span>Total: <strong>{stats.total}</strong></span>
         <span class="stat-pendiente">Pendiente: <strong>{stats.pendiente}</strong></span>
