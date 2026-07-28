@@ -134,7 +134,7 @@ export default function Dashboard({ id }: { id?: string }) {
             mainPolygon={wizardStep >= 2 ? mainPolygon : undefined}
             mainPolygonColor="#1e3a5f"
             editing={editingPoly}
-            editablePolygon={editingPoly && mainPolygon.length >= 3 ? mainPolygon : drawMode === 'polygon' && drawPoints.length >= 3 && !editingPoly ? drawPoints : undefined}
+            editablePolygon={editingPoly && mainPolygon.length >= 3 ? mainPolygon : drawPoints.length >= 3 && !editingPoly ? drawPoints : undefined}
             onPolygonEdit={(pts) => { setMainPolygon(pts); setDrawPoints(pts); setEditablePolygon(pts); }}
             subZonesOverlay={zones.map(z => ({ polygon: z.polygon, type: z.type }))} />
         </div>
@@ -204,17 +204,32 @@ export default function Dashboard({ id }: { id?: string }) {
         <div class="map-container" style={{ flex: 1, border: '2px solid #1e3a5f', borderRadius: '8px', overflow: 'hidden' }}>
           <MapView polygon={mission?.polygon} sectors={sectors} searchers={searchers.filter(s => s.lat)} subZonesOverlay={mission?.sub_zones} />
         </div>
-        <div class="sector-card">
-          <h3>Sectores</h3>
-          <div class="sector-list">
-            {sectors.map(s => (
-              <div key={s.id} class="sector-item">
-                <span class="sector-dot" style={{ background: s.sector_color || '#94a3b8' }}></span>
-                <span class="sector-num">#{s.sector_number}</span>
-                <span class="sector-status">{s.status}</span>
-                <span class="sector-searchers">{sectorCounts[s.id] || 0} busc.</span>
-              </div>
-            ))}
+        <div class="sector-cards">
+          <div class="sector-card">
+            <h3>Zonas urbanas</h3>
+            <div class="sector-list">
+              {sectors.filter(s => !s.sector_letter).map(s => (
+                <div key={s.id} class="sector-item">
+                  <span class="sector-dot" style={{ background: s.sector_color || '#94a3b8' }}></span>
+                  <span class="sector-num">#{s.sector_number}</span>
+                  <span class="sector-status">{s.status}</span>
+                  <span class="sector-searchers">{sectorCounts[s.id] || 0}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div class="sector-card">
+            <h3>Parques / Bosques</h3>
+            <div class="sector-list">
+              {sectors.filter(s => s.sector_letter).map(s => (
+                <div key={s.id} class="sector-item">
+                  <span class="sector-dot" style={{ background: s.sector_color || '#94a3b8' }}></span>
+                  <span class="sector-num">{s.sector_letter}</span>
+                  <span class="sector-status">{s.status}</span>
+                  <span class="sector-searchers">{sectorCounts[s.id] || 0}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

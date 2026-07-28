@@ -8,24 +8,33 @@ export interface Sector {
   searched_by?: string;
   timestamp?: string;
   sector_number?: number;
+  sector_letter?: string;
   sector_color?: string;
 }
 
-const COLORS = [
-  '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
-  '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabed4',
-  '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000',
-  '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9',
-  '#e6beff', '#9A9A9A', '#f4cccc', '#d9ead3', '#cfe2f3',
-  '#fff2cc', '#d9d9e9', '#ead1dc', '#b6d7a8', '#a2c4c9',
+const NUM_COLORS = [
+  '#e6194b', '#f58231', '#ffe119', '#4363d8', '#911eb4',
+  '#42d4f4', '#f032e6', '#bfef45', '#9A6324', '#800000',
+  '#000075', '#a9a9a9', '#e6beff', '#808000', '#ffd8b1',
+  '#d9ead3', '#a2c4c9', '#fabed4', '#3cb44b', '#469990',
+]
+
+const LET_COLORS = [
+  '#22c55e', '#16a34a', '#15803d', '#4ade80', '#86efac',
+  '#059669', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0',
+  '#166534', '#14532d', '#bbf7d0', '#dcfce7', '#2dd4bf',
+  '#14b8a6', '#0d9488', '#5eead4', '#99f6e4', '#ccfbf1',
 ]
 
 export function assignSectorColors(sectors: Sector[]): Sector[] {
-  return sectors.map((s, i) => ({
-    ...s,
-    sector_number: i + 1,
-    sector_color: COLORS[i % COLORS.length],
-  }))
+  let numIdx = 0, letIdx = 0, letterCode = 65
+  return sectors.map(s => {
+    if (s.sector_type === 'grid' || s.id.startsWith('grid') || s.id.startsWith('zone') && s.sector_type !== 'block') {
+      const l = String.fromCharCode(letterCode++)
+      return { ...s, sector_letter: l, sector_color: LET_COLORS[(letIdx++) % LET_COLORS.length] }
+    }
+    return { ...s, sector_number: ++numIdx, sector_color: NUM_COLORS[(numIdx - 1) % NUM_COLORS.length] }
+  })
 }
 
 export function getSectorStyle(sector: Sector) {
@@ -37,11 +46,13 @@ export function getSectorStyle(sector: Sector) {
 
 export function getSectorLabelStyle(sector: Sector) {
   const bg = sector.sector_color || '#94a3b8'
+  const label = sector.sector_letter || sector.sector_number || ''
+  const size = sector.sector_letter ? 24 : 22
   return {
-    html: `<div style="background:${bg};color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;border:2px solid rgba(255,255,255,0.8);box-shadow:0 1px 3px rgba(0,0,0,0.3)">${sector.sector_number || ''}</div>`,
+    html: `<div style="background:${bg};color:#fff;border-radius:50%;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;font-size:${sector.sector_letter ? 13 : 11}px;font-weight:bold;border:2px solid rgba(255,255,255,0.8);box-shadow:0 1px 3px rgba(0,0,0,0.3)">${label}</div>`,
     className: '',
-    iconSize: [22, 22] as [number, number],
-    iconAnchor: [11, 11] as [number, number],
+    iconSize: [size, size] as [number, number],
+    iconAnchor: [size / 2, size / 2] as [number, number],
   }
 }
 

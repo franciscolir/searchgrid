@@ -96,12 +96,13 @@ input::placeholder { color: #64748b; }
 .mission-map-area { display: flex; gap: 0.75rem; height: 60vh; }
 .map-container { flex: 1; min-width: 0; }
 
-.sector-card { width: 260px; flex-shrink: 0; background: #1e293b; border-radius: 8px; padding: 0.75rem; border: 1px solid #334155; overflow-y: auto; }
-.sector-card h3 { font-size: 0.95rem; margin-bottom: 0.5rem; color: #94a3b8; }
-.sector-list { display: flex; flex-direction: column; gap: 0.25rem; }
-.sector-item { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.4rem; border-radius: 4px; font-size: 0.8rem; transition: background 0.2s; }
+.sector-cards { width: 250px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.sector-card { background: #1e293b; border-radius: 8px; padding: 0.6rem; border: 1px solid #334155; overflow-y: auto; max-height: 50%; }
+.sector-card h3 { font-size: 0.85rem; margin-bottom: 0.35rem; color: #94a3b8; }
+.sector-list { display: flex; flex-direction: column; gap: 0.15rem; }
+.sector-item { display: flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.3rem; border-radius: 3px; font-size: 0.75rem; transition: background 0.2s; }
 .sector-item:hover { background: #0f172a; }
-.sector-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
-.sector-num { font-weight: bold; width: 32px; color: #e2e8f0; }
-.sector-status { flex: 1; color: #94a3b8; font-size: 0.75rem; text-transform: capitalize; }
-.sector-searchers { color: #60a5fa; font-size: 0.75rem; white-space: nowrap; }
+.sector-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.sector-num { font-weight: bold; width: 28px; color: #e2e8f0; font-size: 0.8rem; }
+.sector-status { flex: 1; color: #94a3b8; font-size: 0.7rem; text-transform: capitalize; }
+.sector-searchers { color: #60a5fa; font-size: 0.7rem; white-space: nowrap; }

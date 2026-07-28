@@ -187,11 +187,12 @@ export default function MapView(props: MapViewProps) {
         : s.sector_type === 'street' && s.nodes && s.nodes.length >= 2
         ? L.polyline(s.nodes as any, { ...style, interactive: !!props.onSectorClick })
         : L.rectangle(s.bounds as any, { ...style, interactive: !!props.onSectorClick });
-      if (s.searched_by) layer.bindTooltip(`#${s.sector_number || ''} ${s.status} - ${s.searched_by}`, { sticky: true });
-      else layer.bindTooltip(`#${s.sector_number || ''} ${s.status}`, { sticky: true });
+      const lbl = s.sector_letter || `#${s.sector_number}` || '';
+      if (s.searched_by) layer.bindTooltip(`${lbl} ${s.status} - ${s.searched_by}`, { sticky: true });
+      else layer.bindTooltip(`${lbl} ${s.status}`, { sticky: true });
       sectorLayer.current.addLayer(layer);
       sectorMap.current.set(s.id, layer as any);
-      if (s.sector_number && s.sector_color) {
+      if ((s.sector_number || s.sector_letter) && s.sector_color) {
         const labelStyle = getSectorLabelStyle(s);
         L.marker(s.center as any, { icon: L.divIcon(labelStyle), interactive: false }).addTo(sectorLabelLayer.current);
       }
