@@ -70,49 +70,54 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function polyToOverpass(polygon) {
-  return polygon.map(p => `${p[0]} ${p[1]}`).join(' ');
-}
-
 function hashPolygon(polygon) {
   const crypto = require('crypto');
   return crypto.createHash('md5').update(JSON.stringify(polygon)).digest('hex');
 }
 
 async function fetchStreets(polygon) {
-  const polyStr = polyToOverpass(polygon);
-  const query = `[out:json];way["highway"](poly:"${polyStr}")->.roads;(._;>;);out body;`;
-  const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) return null;
-  return res.json();
+  try {
+    const lats = polygon.map(p => p[0]);
+    const lngs = polygon.map(p => p[1]);
+    const south = Math.min(...lats), north = Math.max(...lats);
+    const west = Math.min(...lngs), east = Math.max(...lngs);
+    const query = `[out:json];way["highway"](${south},${west},${north},${east});out geom 500;`;
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'User-Agent': 'SearchGrid/1.0' },
+      body: `data=${encodeURIComponent(query)}`,
+      signal: AbortSignal.timeout(40000),
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (!text.includes('"elements"')) return null;
+    return JSON.parse(text);
+  } catch { return null; }
 }
 
 function processStreets(osmData) {
-  const nodes = new Map();
-  for (const el of osmData.elements || []) {
-    if (el.type === 'node') nodes.set(el.id, [el.lat, el.lon]);
-  }
   const segments = [];
   let segId = 0;
   for (const el of osmData.elements || []) {
-    if (el.type !== 'way' || !el.nodes) continue;
-    const wayNodes = el.nodes.map(id => nodes.get(id)).filter(Boolean);
-    if (wayNodes.length < 2) continue;
-    let current = [wayNodes[0]];
-    for (let i = 1; i < wayNodes.length; i++) {
-      current.push(wayNodes[i]);
-      const dist = haversine(current[0][0], current[0][1], wayNodes[i][0], wayNodes[i][1]);
-      if (dist >= 80 || i === wayNodes.length - 1) {
-        const mid = current.length > 1 ? [(current[0][0] + current[current.length - 1][0]) / 2, (current[0][1] + current[current.length - 1][1]) / 2] : current[0];
+    if (el.type !== 'way') continue;
+    const pts = el.geometry ? el.geometry.map(g => [g.lat, g.lon]) : null;
+    if (!pts || pts.length < 2) continue;
+    let current = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      current.push(pts[i]);
+      const dist = haversine(current[0][0], current[0][1], pts[i][0], pts[i][1]);
+      if (dist >= 80 || i === pts.length - 1) {
+        const first = current[0];
+        const last = current[current.length - 1];
+        const mid = [(first[0] + last[0]) / 2, (first[1] + last[1]) / 2];
         segments.push({
           id: `street-${segId++}`,
-          bounds: JSON.stringify([[current[0][0], current[0][1]], [current[current.length - 1][0], current[current.length - 1][1]]]),
+          bounds: JSON.stringify([first, last]),
           center: JSON.stringify(mid),
           sector_type: 'street',
           nodes: JSON.stringify(current),
         });
-        current = [wayNodes[i]];
+        current = [pts[i]];
       }
     }
   }
