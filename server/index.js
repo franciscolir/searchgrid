@@ -62,11 +62,6 @@ function polygonToSectors(polygon, mode = 'bosque', subZones = []) {
   return sectors;
 }
 
-function hashPolygon(polygon) {
-  const crypto = require('crypto');
-  return crypto.createHash('md5').update(JSON.stringify(polygon)).digest('hex');
-}
-
 function polygonArea(pts) {
   let area = 0;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++)
@@ -78,6 +73,41 @@ function polygonCentroid(pts) {
   let cx = 0, cy = 0;
   for (const p of pts) { cx += p[0]; cy += p[1]; }
   return [cx / pts.length, cy / pts.length];
+}
+
+function cross2(ax, ay, bx, by) { return ax * by - ay * bx; }
+
+function clipPolygon(pts, ax, ay, bx, by) {
+  // Clip polygon to the LEFT side of the directed line A->B
+  const result = [];
+  for (let i = 0; i < pts.length; i++) {
+    const cur = pts[i], nxt = pts[(i + 1) % pts.length];
+    const curSide = cross2(bx - ax, by - ay, cur[1] - ay, cur[0] - ax);
+    const nxtSide = cross2(bx - ax, by - ay, nxt[1] - ay, nxt[0] - ax);
+    if (curSide >= 0) result.push(cur);
+    if ((curSide >= 0 && nxtSide < 0) || (curSide < 0 && nxtSide >= 0)) {
+      const t = curSide / (curSide - nxtSide);
+      result.push([cur[0] + t * (nxt[0] - cur[0]), cur[1] + t * (nxt[1] - cur[1])]);
+    }
+  }
+  return result;
+}
+
+function splitPolygon(pts) {
+  if (pts.length < 4) return [pts, pts];
+  const lats = pts.map(p => p[0]), lngs = pts.map(p => p[1]);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const c = polygonCentroid(pts);
+  // Split along the longest axis
+  if (maxLat - minLat > maxLng - minLng) {
+    // Horizontal split (vertical line not needed, use horizontal cut line)
+    const a = [c[0], minLng - 1], b = [c[0], maxLng + 1];
+    return [clipPolygon(pts, a[0], a[1], b[0], b[1]), clipPolygon(pts, b[0], b[1], a[0], a[1])];
+  } else {
+    const a = [minLat - 1, c[1]], b = [maxLat + 1, c[1]];
+    return [clipPolygon(pts, a[0], a[1], b[0], b[1]), clipPolygon(pts, b[0], b[1], a[0], a[1])];
+  }
 }
 
 async function fetchOSM(polygon) {
@@ -161,8 +191,25 @@ app.post('/api/missions', async (req, res) => {
       const pts = z.polygon;
       const center = polygonCentroid(pts);
       if (z.type === 'verde') {
-        const g = polygonToSectors(pts, mode, []);
-        for (const s of g) sectors.push({ ...s, id: `grid-${sid++}` });
+        const area = polygonArea(pts);
+        if (area < 10000) {
+          const halves = splitPolygon(pts);
+          for (const h of halves) {
+            if (h.length >= 3) {
+              const center = polygonCentroid(h);
+              sectors.push({
+                id: `verde-${sid++}`,
+                bounds: JSON.stringify([h[0], h[h.length - 1]]),
+                center: JSON.stringify(center),
+                sector_type: 'grid',
+                nodes: JSON.stringify(h),
+              });
+            }
+          }
+        } else {
+          const g = polygonToSectors(pts, mode, []);
+          for (const s of g) sectors.push({ ...s, id: `grid-${sid++}` });
+        }
       } else {
         sectors.push({
           id: `zone-${sid++}`,

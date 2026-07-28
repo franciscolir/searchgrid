@@ -73,11 +73,6 @@ db.exec(`
     FOREIGN KEY (mission_id) REFERENCES missions(id)
   );
 
-  CREATE TABLE IF NOT EXISTS osm_cache (
-    poly_hash TEXT PRIMARY KEY,
-    data TEXT NOT NULL,
-    fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
 `);
 
 module.exports = db;
