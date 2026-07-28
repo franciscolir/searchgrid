@@ -98,28 +98,26 @@ async function fetchStreets(polygon) {
 function processStreets(osmData) {
   const segments = [];
   let segId = 0;
+  const seen = new Set();
   for (const el of osmData.elements || []) {
     if (el.type !== 'way') continue;
     const pts = el.geometry ? el.geometry.map(g => [g.lat, g.lon]) : null;
     if (!pts || pts.length < 2) continue;
-    let current = [pts[0]];
-    for (let i = 1; i < pts.length; i++) {
-      current.push(pts[i]);
-      const dist = haversine(current[0][0], current[0][1], pts[i][0], pts[i][1]);
-      if (dist >= 80 || i === pts.length - 1) {
-        const first = current[0];
-        const last = current[current.length - 1];
-        const mid = [(first[0] + last[0]) / 2, (first[1] + last[1]) / 2];
-        segments.push({
-          id: `street-${segId++}`,
-          bounds: JSON.stringify([first, last]),
-          center: JSON.stringify(mid),
-          sector_type: 'street',
-          nodes: JSON.stringify(current),
-        });
-        current = [pts[i]];
-      }
-    }
+    const key = pts.map(p => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    const mid = [(first[0] + last[0]) / 2, (first[1] + last[1]) / 2];
+    const totalLen = pts.reduce((sum, p, i) => i > 0 ? sum + haversine(pts[i-1][0], pts[i-1][1], p[0], p[1]) : sum, 0);
+    if (totalLen > 1000) continue;
+    segments.push({
+      id: `street-${segId++}`,
+      bounds: JSON.stringify([first, last]),
+      center: JSON.stringify(mid),
+      sector_type: 'street',
+      nodes: JSON.stringify(pts),
+    });
   }
   return segments;
 }
