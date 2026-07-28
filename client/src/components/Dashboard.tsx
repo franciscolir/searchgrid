@@ -135,6 +135,9 @@ export default function Dashboard({ id }: { id?: string }) {
           <button class="btn btn-primary" onClick={() => { setCreating(true); setDrawMode(true); }} disabled={drawMode}>
             {drawMode ? 'Dibujando poligono principal...' : 'Dibujar area de busqueda'}
           </button>
+          {drawPoints.length >= 3 && drawMode && (
+            <button class="btn btn-sm btn-secondary" onClick={() => setDrawMode(false)} style="margin-top:0.5rem">Finalizar dibujo</button>
+          )}
           {drawPoints.length > 0 && !drawMode && (
             <div class="draw-info">
               <p>Poligono principal: {drawPoints.length} puntos.</p>

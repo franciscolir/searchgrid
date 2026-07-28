@@ -31,6 +31,15 @@ export default function MapView(props: MapViewProps) {
   const locationMarker = useRef<L.CircleMarker | null>(null);
   const sectorMap = useRef<Map<string, L.Rectangle>>(new Map());
 
+  const drawModeRef = useRef(props.drawMode);
+  drawModeRef.current = props.drawMode;
+  const onDrawPointRef = useRef(props.onDrawPoint);
+  onDrawPointRef.current = props.onDrawPoint;
+  const onSectorClickRef = useRef(props.onSectorClick);
+  onSectorClickRef.current = props.onSectorClick;
+  const sectorsRef = useRef(props.sectors);
+  sectorsRef.current = props.sectors;
+
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current, {
@@ -47,17 +56,17 @@ export default function MapView(props: MapViewProps) {
     subZoneLayer.current.addTo(map);
     if (props.interactive !== false) {
       map.on('click', (e: L.LeafletMouseEvent) => {
-        if (props.drawMode) {
-          props.onDrawPoint?.([e.latlng.lat, e.latlng.lng]);
-        } else if (props.onSectorClick) {
+        if (drawModeRef.current) {
+          onDrawPointRef.current?.([e.latlng.lat, e.latlng.lng]);
+        } else if (onSectorClickRef.current) {
           const pt = e.latlng;
           let closest: string | null = null;
           let minDist = Infinity;
-          for (const s of props.sectors || []) {
+          for (const s of sectorsRef.current || []) {
             const d = map.distance(pt, L.latLng(s.center[0], s.center[1]));
             if (d < minDist) { minDist = d; closest = s.id; }
           }
-          if (closest && minDist < 200) props.onSectorClick(closest);
+          if (closest && minDist < 200) onSectorClickRef.current(closest);
         }
       });
     }
