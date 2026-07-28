@@ -3,7 +3,7 @@ export interface Sector {
   bounds: [[number, number], [number, number]];
   center: [number, number];
   status: 'pendiente' | 'buscando' | 'revisado';
-  sector_type?: 'street' | 'grid';
+  sector_type?: 'street' | 'grid' | 'block';
   nodes?: [number, number][];
   searched_by?: string;
   timestamp?: string;
@@ -31,11 +31,11 @@ export function getStatusColor(status: string): string {
 
 export function getSectorStyle(status: string, sectorType = 'grid') {
   const color = getStatusColor(status);
-  return {
-    fillColor: sectorType === 'street' ? undefined : color,
-    weight: sectorType === 'street' ? 4 : 1,
-    opacity: 0.9,
-    color: color,
-    fillOpacity: sectorType === 'street' ? 0 : 0.3,
-  };
+  if (sectorType === 'block') {
+    return { fillColor: color, weight: 2, opacity: 0.8, color: '#fff', fillOpacity: 0.25, dashArray: undefined };
+  }
+  if (sectorType === 'street') {
+    return { fillColor: undefined, weight: 4, opacity: 0.9, color, fillOpacity: 0 };
+  }
+  return { fillColor: color, weight: 1, opacity: 0.7, color, fillOpacity: 0.3 };
 }

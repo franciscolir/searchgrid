@@ -112,7 +112,9 @@ export default function MapView(props: MapViewProps) {
     sectorMap.current.clear();
     for (const s of props.sectors || []) {
       const style = getSectorStyle(s.status, s.sector_type);
-      const layer = s.sector_type === 'street' && s.nodes && s.nodes.length >= 2
+      const layer = s.sector_type === 'block' && s.nodes && s.nodes.length >= 3
+        ? L.polygon(s.nodes as any, { ...style, interactive: !!props.onSectorClick })
+        : s.sector_type === 'street' && s.nodes && s.nodes.length >= 2
         ? L.polyline(s.nodes as any, { ...style, interactive: !!props.onSectorClick })
         : L.rectangle(s.bounds as any, { ...style, interactive: !!props.onSectorClick });
       if (s.searched_by) {

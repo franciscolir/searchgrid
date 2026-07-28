@@ -62,64 +62,66 @@ function polygonToSectors(polygon, mode = 'bosque', subZones = []) {
   return sectors;
 }
 
-function haversine(lat1, lng1, lat2, lng2) {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 function hashPolygon(polygon) {
   const crypto = require('crypto');
   return crypto.createHash('md5').update(JSON.stringify(polygon)).digest('hex');
 }
 
-async function fetchStreets(polygon) {
+function polygonArea(pts) {
+  let area = 0;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++)
+    area += (pts[j][0] + pts[i][0]) * (pts[j][1] - pts[i][1]);
+  return Math.abs(area) / 2 * 111319.9 * 111319.9;
+}
+
+function polygonCentroid(pts) {
+  let cx = 0, cy = 0;
+  for (const p of pts) { cx += p[0]; cy += p[1]; }
+  return [cx / pts.length, cy / pts.length];
+}
+
+async function fetchOSM(polygon) {
   try {
     const lats = polygon.map(p => p[0]);
     const lngs = polygon.map(p => p[1]);
     const south = Math.min(...lats), north = Math.max(...lats);
     const west = Math.min(...lngs), east = Math.max(...lngs);
-    const query = `[out:json];way["highway"](${south},${west},${north},${east});out geom 500;`;
+    const q = `[out:json];way["highway"](${south},${west},${north},${east});out geom 500;`;
     const res = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'User-Agent': 'SearchGrid/1.0' },
-      body: `data=${encodeURIComponent(query)}`,
-      signal: AbortSignal.timeout(40000),
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'User-Agent': 'SearchGrid/1.0' },
+      body: `data=${encodeURIComponent(q)}`,
+      signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) return null;
-    const text = await res.text();
-    if (!text.includes('"elements"')) return null;
-    return JSON.parse(text);
+    const t = await res.text();
+    return t.includes('"elements"') ? JSON.parse(t) : null;
   } catch { return null; }
 }
 
-function processStreets(osmData) {
-  const segments = [];
-  let segId = 0;
+function processOSMStreets(osmData, polygon) {
+  const sectors = [];
+  let id = 0;
   const seen = new Set();
   for (const el of osmData.elements || []) {
     if (el.type !== 'way') continue;
     const pts = el.geometry ? el.geometry.map(g => [g.lat, g.lon]) : null;
     if (!pts || pts.length < 2) continue;
-    const key = pts.map(p => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join('|');
+    const key = pts.map(p => `${p[0].toFixed(4)},${p[1].toFixed(4)}`).join('|');
     if (seen.has(key)) continue;
     seen.add(key);
-    const first = pts[0];
-    const last = pts[pts.length - 1];
-    const mid = [(first[0] + last[0]) / 2, (first[1] + last[1]) / 2];
-    const totalLen = pts.reduce((sum, p, i) => i > 0 ? sum + haversine(pts[i-1][0], pts[i-1][1], p[0], p[1]) : sum, 0);
-    if (totalLen > 1000) continue;
-    segments.push({
-      id: `street-${segId++}`,
-      bounds: JSON.stringify([first, last]),
+    if (!pointInPolygon(pts[0], polygon)) continue;
+    const mid = polygonCentroid(pts);
+    const totalLen = pts.reduce((s, p, i) => i > 0 ? s + Math.sqrt((p[0]-pts[i-1][0])**2 + (p[1]-pts[i-1][1])**2) * 111319 : s, 0);
+    if (totalLen > 800) continue;
+    sectors.push({
+      id: `street-${id++}`,
+      bounds: JSON.stringify([pts[0], pts[pts.length-1]]),
       center: JSON.stringify(mid),
       sector_type: 'street',
       nodes: JSON.stringify(pts),
     });
   }
-  return segments;
+  return sectors;
 }
 
 app.get('/api/missions', (req, res) => {
@@ -158,16 +160,19 @@ app.post('/api/missions', async (req, res) => {
     const cached = db.prepare('SELECT data FROM osm_cache WHERE poly_hash = ?').get(hash);
     let osmData = cached ? JSON.parse(cached.data) : null;
     if (!osmData) {
-      try { osmData = await fetchStreets(polygon); } catch (e) {}
+      try { osmData = await fetchOSM(polygon); } catch {}
       if (osmData) db.prepare('INSERT OR REPLACE INTO osm_cache (poly_hash, data) VALUES (?, ?)').run(hash, JSON.stringify(osmData));
     }
     if (osmData) {
-      sectors = processStreets(osmData);
-      streetCount = sectors.length;
+      const streets = processOSMStreets(osmData, polygon);
+      const grid = polygonToSectors(polygon, mode, subZones);
+      const used = new Set();
+      sectors = [];
+      for (const s of streets) { sectors.push(s); used.add(JSON.stringify(s.center).slice(0, 10)); }
+      for (const g of grid) { if (!used.has(JSON.stringify(g.center).slice(0, 10))) sectors.push(g); }
+      streetCount = streets.length;
     }
-    if (!sectors || sectors.length === 0) {
-      sectors = polygonToSectors(polygon, mode, subZones);
-    }
+    if (!sectors || sectors.length === 0) sectors = polygonToSectors(polygon, mode, subZones);
   } else {
     sectors = polygonToSectors(polygon, mode, subZones);
   }
@@ -184,7 +189,7 @@ app.post('/api/missions', async (req, res) => {
   m.polygon = JSON.parse(m.polygon);
   const resBody = { id: m.id, title: m.title, description: m.description, polygon: m.polygon,
     cell_size: m.cell_size, status: m.status, created_at: m.created_at, mode: m.mode,
-    sub_zones: JSON.parse(m.sub_zones || '[]'), street_count: streetCount,
+    sub_zones: JSON.parse(m.sub_zones || '[]'),     street_count: streetCount,
     has_keyword: !!m.require_keyword, keyword: rk ? keyword : undefined };
   io.emit('mission:created', resBody);
   res.json(resBody);
