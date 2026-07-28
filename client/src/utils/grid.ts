@@ -4,6 +4,7 @@ export interface Sector {
   center: [number, number];
   status: 'pendiente' | 'buscando' | 'revisado';
   sector_type?: 'street' | 'grid';
+  nodes?: [number, number][];
   searched_by?: string;
   timestamp?: string;
 }
@@ -31,11 +32,10 @@ export function getStatusColor(status: string): string {
 export function getSectorStyle(status: string, sectorType = 'grid') {
   const color = getStatusColor(status);
   return {
-    fillColor: color,
-    weight: sectorType === 'street' ? 2 : 1,
-    opacity: 0.8,
-    color: sectorType === 'street' ? '#fff' : color,
-    fillOpacity: sectorType === 'street' ? 0.4 : 0.3,
-    dashArray: sectorType === 'street' ? '4,4' : undefined,
+    fillColor: sectorType === 'street' ? undefined : color,
+    weight: sectorType === 'street' ? 4 : 1,
+    opacity: 0.9,
+    color: color,
+    fillOpacity: sectorType === 'street' ? 0 : 0.3,
   };
 }

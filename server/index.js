@@ -62,6 +62,63 @@ function polygonToSectors(polygon, mode = 'bosque', subZones = []) {
   return sectors;
 }
 
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function polyToOverpass(polygon) {
+  return polygon.map(p => `${p[0]} ${p[1]}`).join(' ');
+}
+
+function hashPolygon(polygon) {
+  const crypto = require('crypto');
+  return crypto.createHash('md5').update(JSON.stringify(polygon)).digest('hex');
+}
+
+async function fetchStreets(polygon) {
+  const polyStr = polyToOverpass(polygon);
+  const query = `[out:json];way["highway"](poly:"${polyStr}")->.roads;(._;>;);out body;`;
+  const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+function processStreets(osmData) {
+  const nodes = new Map();
+  for (const el of osmData.elements || []) {
+    if (el.type === 'node') nodes.set(el.id, [el.lat, el.lon]);
+  }
+  const segments = [];
+  let segId = 0;
+  for (const el of osmData.elements || []) {
+    if (el.type !== 'way' || !el.nodes) continue;
+    const wayNodes = el.nodes.map(id => nodes.get(id)).filter(Boolean);
+    if (wayNodes.length < 2) continue;
+    let current = [wayNodes[0]];
+    for (let i = 1; i < wayNodes.length; i++) {
+      current.push(wayNodes[i]);
+      const dist = haversine(current[0][0], current[0][1], wayNodes[i][0], wayNodes[i][1]);
+      if (dist >= 80 || i === wayNodes.length - 1) {
+        const mid = current.length > 1 ? [(current[0][0] + current[current.length - 1][0]) / 2, (current[0][1] + current[current.length - 1][1]) / 2] : current[0];
+        segments.push({
+          id: `street-${segId++}`,
+          bounds: JSON.stringify([[current[0][0], current[0][1]], [current[current.length - 1][0], current[current.length - 1][1]]]),
+          center: JSON.stringify(mid),
+          sector_type: 'street',
+          nodes: JSON.stringify(current),
+        });
+        current = [wayNodes[i]];
+      }
+    }
+  }
+  return segments;
+}
+
 app.get('/api/missions', (req, res) => {
   const missions = db.prepare('SELECT * FROM missions ORDER BY created_at DESC').all();
   res.json(missions.map(m => ({
@@ -80,21 +137,42 @@ app.get('/api/missions/:id', (req, res) => {
   const { id, title, description, polygon, cell_size, status, created_at } = mission;
   res.json({ id, title, description, polygon, cell_size, status, created_at, mode: mission.mode,
     sub_zones: JSON.parse(mission.sub_zones || '[]'),
-    has_keyword: !!mission.require_keyword, searchers, sectors });
+    has_keyword: !!mission.require_keyword, searchers,
+    sectors: sectors.map(s => ({ ...s, nodes: s.nodes ? JSON.parse(s.nodes) : undefined })) });
 });
 
-app.post('/api/missions', (req, res) => {
+app.post('/api/missions', async (req, res) => {
   const { title, description, polygon, keyword, requireKeyword, mode = 'bosque', subZones = [] } = req.body;
   const id = uuidv4();
   const rk = requireKeyword && keyword ? 1 : 0;
   const sz = JSON.stringify(subZones);
   db.prepare('INSERT INTO missions (id, title, description, polygon, cell_size, status, keyword, require_keyword, mode, sub_zones) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, title, description || '', JSON.stringify(polygon), mode === 'urbano' ? 0.002 : 0.001, 'active', rk ? keyword : null, rk, mode, sz);
 
-  const sectors = polygonToSectors(polygon, mode, subZones);
-  const insertSector = db.prepare('INSERT OR IGNORE INTO sectors (id, mission_id, bounds, center, status, sector_type) VALUES (?, ?, ?, ?, ?, ?)');
+  let sectors;
+  let streetCount = 0;
+  if (mode === 'urbano') {
+    const hash = hashPolygon(polygon);
+    const cached = db.prepare('SELECT data FROM osm_cache WHERE poly_hash = ?').get(hash);
+    let osmData = cached ? JSON.parse(cached.data) : null;
+    if (!osmData) {
+      try { osmData = await fetchStreets(polygon); } catch (e) {}
+      if (osmData) db.prepare('INSERT OR REPLACE INTO osm_cache (poly_hash, data) VALUES (?, ?)').run(hash, JSON.stringify(osmData));
+    }
+    if (osmData) {
+      sectors = processStreets(osmData);
+      streetCount = sectors.length;
+    }
+    if (!sectors || sectors.length === 0) {
+      sectors = polygonToSectors(polygon, mode, subZones);
+    }
+  } else {
+    sectors = polygonToSectors(polygon, mode, subZones);
+  }
+
+  const insertSector = db.prepare('INSERT OR IGNORE INTO sectors (id, mission_id, bounds, center, status, sector_type, nodes) VALUES (?, ?, ?, ?, ?, ?, ?)');
   const txn = db.transaction(() => {
     for (const s of sectors) {
-      insertSector.run(s.id, id, s.bounds, s.center, 'pendiente', s.sector_type);
+      insertSector.run(s.id, id, s.bounds, s.center, 'pendiente', s.sector_type, s.nodes || null);
     }
   });
   txn();
@@ -103,7 +181,7 @@ app.post('/api/missions', (req, res) => {
   m.polygon = JSON.parse(m.polygon);
   const resBody = { id: m.id, title: m.title, description: m.description, polygon: m.polygon,
     cell_size: m.cell_size, status: m.status, created_at: m.created_at, mode: m.mode,
-    sub_zones: JSON.parse(m.sub_zones || '[]'),
+    sub_zones: JSON.parse(m.sub_zones || '[]'), street_count: streetCount,
     has_keyword: !!m.require_keyword, keyword: rk ? keyword : undefined };
   io.emit('mission:created', resBody);
   res.json(resBody);
@@ -141,7 +219,7 @@ app.get('/api/missions/:id/state', (req, res) => {
   res.json({ mission: { id, title, description, polygon, cell_size, status, created_at,
     mode: mission.mode, sub_zones: JSON.parse(mission.sub_zones || '[]'),
     has_keyword: !!mission.require_keyword },
-    searchers, sectors: sectors.map(s => ({ ...s, bounds: JSON.parse(s.bounds), center: JSON.parse(s.center) })) });
+    searchers, sectors: sectors.map(s => ({ ...s, bounds: JSON.parse(s.bounds), center: JSON.parse(s.center), nodes: s.nodes ? JSON.parse(s.nodes) : undefined })) });
 });
 
 app.post('/api/sync', (req, res) => {

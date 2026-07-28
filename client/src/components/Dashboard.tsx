@@ -196,7 +196,7 @@ export default function Dashboard({ id }: { id?: string }) {
           {mission?.keyword && <p class="keyword-share">Palabra clave: <strong>{mission.keyword}</strong></p>}
         </div>
       )}
-      {mission?.mode && <p class="muted" style="margin-bottom:0.5rem">Modo: <strong>{mission.mode === 'urbano' ? 'Urbano / Calles' : 'Bosque / Malla'}</strong> {mission.sub_zones?.length > 0 && `| ${mission.sub_zones.length} sub-zona(s) marcadas`}</p>}
+      {mission?.mode && <p class="muted" style="margin-bottom:0.5rem">Modo: <strong>{mission.mode === 'urbano' ? 'Urbano / Calles' : 'Bosque / Malla'}</strong> {mission.street_count > 0 && `| ${mission.street_count} tramos de calle`} {mission.sub_zones?.length > 0 && `| ${mission.sub_zones.length} sub-zona(s)`}</p>}
       <div class="stats-bar">
         <span>Total: <strong>{stats.total}</strong></span>
         <span class="stat-pendiente">Pendiente: <strong>{stats.pendiente}</strong></span>

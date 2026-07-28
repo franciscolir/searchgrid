@@ -112,15 +112,14 @@ export default function MapView(props: MapViewProps) {
     sectorMap.current.clear();
     for (const s of props.sectors || []) {
       const style = getSectorStyle(s.status, s.sector_type);
-      const rect = L.rectangle(s.bounds as any, {
-        ...style,
-        interactive: !!props.onSectorClick,
-      });
+      const layer = s.sector_type === 'street' && s.nodes && s.nodes.length >= 2
+        ? L.polyline(s.nodes as any, { ...style, interactive: !!props.onSectorClick })
+        : L.rectangle(s.bounds as any, { ...style, interactive: !!props.onSectorClick });
       if (s.searched_by) {
-        rect.bindTooltip(`${s.status} por ${s.searched_by}`, { sticky: true });
+        layer.bindTooltip(`${s.status} por ${s.searched_by}`, { sticky: true });
       }
-      sectorLayer.current.addLayer(rect);
-      sectorMap.current.set(s.id, rect);
+      sectorLayer.current.addLayer(layer);
+      sectorMap.current.set(s.id, layer as any);
     }
   }, [props.sectors, props.onSectorClick]);
 

@@ -14,6 +14,7 @@ addColumn('missions', 'require_keyword', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('missions', 'mode', 'TEXT NOT NULL DEFAULT \'bosque\'');
 addColumn('missions', 'sub_zones', 'TEXT');
 addColumn('sectors', 'sector_type', 'TEXT NOT NULL DEFAULT \'grid\'');
+addColumn('sectors', 'nodes', 'TEXT');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS missions (
@@ -46,6 +47,7 @@ db.exec(`
     center TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pendiente',
     sector_type TEXT NOT NULL DEFAULT 'grid',
+    nodes TEXT,
     searched_by TEXT,
     timestamp TEXT,
     PRIMARY KEY (id, mission_id),
@@ -69,6 +71,12 @@ db.exec(`
     timestamp TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (searcher_id) REFERENCES searchers(id),
     FOREIGN KEY (mission_id) REFERENCES missions(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS osm_cache (
+    poly_hash TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);
 
