@@ -92,3 +92,16 @@ input::placeholder { color: #64748b; }
 
 .result-stats p { margin-bottom: 0.35rem; font-size: 0.9rem; }
 .result-stats strong { color: #f1f5f9; }
+
+.mission-map-area { display: flex; gap: 0.75rem; height: 60vh; }
+.map-container { flex: 1; min-width: 0; }
+
+.sector-card { width: 260px; flex-shrink: 0; background: #1e293b; border-radius: 8px; padding: 0.75rem; border: 1px solid #334155; overflow-y: auto; }
+.sector-card h3 { font-size: 0.95rem; margin-bottom: 0.5rem; color: #94a3b8; }
+.sector-list { display: flex; flex-direction: column; gap: 0.25rem; }
+.sector-item { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.4rem; border-radius: 4px; font-size: 0.8rem; transition: background 0.2s; }
+.sector-item:hover { background: #0f172a; }
+.sector-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.sector-num { font-weight: bold; width: 32px; color: #e2e8f0; }
+.sector-status { flex: 1; color: #94a3b8; font-size: 0.75rem; text-transform: capitalize; }
+.sector-searchers { color: #60a5fa; font-size: 0.75rem; white-space: nowrap; }

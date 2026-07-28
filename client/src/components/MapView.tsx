@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'preact/hooks';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Sector, getSectorStyle } from '../utils/grid';
+import { Sector, getSectorStyle, getSectorLabelStyle } from '../utils/grid';
 
 interface MapViewProps {
   center?: [number, number];
@@ -32,6 +32,7 @@ export default function MapView(props: MapViewProps) {
   const drawPolygonLayer = useRef<L.Polygon | null>(null);
   const drawMarkers = useRef<L.CircleMarker[]>([]);
   const sectorLayer = useRef<L.LayerGroup>(L.layerGroup());
+  const sectorLabelLayer = useRef<L.LayerGroup>(L.layerGroup());
   const searcherLayer = useRef<L.LayerGroup>(L.layerGroup());
   const locationMarker = useRef<L.CircleMarker | null>(null);
   const sectorMap = useRef<Map<string, L.Rectangle>>(new Map());
@@ -57,6 +58,7 @@ export default function MapView(props: MapViewProps) {
       maxZoom: 19,
     }).addTo(map);
     sectorLayer.current.addTo(map);
+    sectorLabelLayer.current.addTo(map);
     searcherLayer.current.addTo(map);
     subZoneLayer.current.addTo(map);
     if (props.interactive !== false) {
@@ -177,18 +179,22 @@ export default function MapView(props: MapViewProps) {
     if (!map) return;
     sectorLayer.current.clearLayers();
     sectorMap.current.clear();
+    sectorLabelLayer.current.clearLayers();
     for (const s of props.sectors || []) {
-      const style = getSectorStyle(s.status, s.sector_type);
+      const style = getSectorStyle(s);
       const layer = s.sector_type === 'block' && s.nodes && s.nodes.length >= 3
         ? L.polygon(s.nodes as any, { ...style, interactive: !!props.onSectorClick })
         : s.sector_type === 'street' && s.nodes && s.nodes.length >= 2
         ? L.polyline(s.nodes as any, { ...style, interactive: !!props.onSectorClick })
         : L.rectangle(s.bounds as any, { ...style, interactive: !!props.onSectorClick });
-      if (s.searched_by) {
-        layer.bindTooltip(`${s.status} por ${s.searched_by}`, { sticky: true });
-      }
+      if (s.searched_by) layer.bindTooltip(`#${s.sector_number || ''} ${s.status} - ${s.searched_by}`, { sticky: true });
+      else layer.bindTooltip(`#${s.sector_number || ''} ${s.status}`, { sticky: true });
       sectorLayer.current.addLayer(layer);
       sectorMap.current.set(s.id, layer as any);
+      if (s.sector_number && s.sector_color) {
+        const labelStyle = getSectorLabelStyle(s);
+        L.marker(s.center as any, { icon: L.divIcon(labelStyle), interactive: false }).addTo(sectorLabelLayer.current);
+      }
     }
   }, [props.sectors, props.onSectorClick]);
 

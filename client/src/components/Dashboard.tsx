@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'preact/hooks';
 import MapView from './MapView';
 import CreateWizard from './CreateWizard';
 import { connect, joinMission, leaveMission, disconnect } from '../services/socket';
-import { Sector } from '../utils/grid';
+import { Sector, assignSectorColors, getSectorAtPoint } from '../utils/grid';
 import { getRegionById, getCommuneCoords } from '../data/chile';
 
 const API = '/api';
@@ -19,6 +19,7 @@ export default function Dashboard({ id }: { id?: string }) {
   const [shareUrl, setShareUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [stats, setStats] = useState({ total: 0, pendiente: 0, buscando: 0, revisado: 0 });
+  const [sectorCounts, setSectorCounts] = useState<{ [sectorId: string]: number }>({});
   const [creating, setCreating] = useState(false);
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
   const [drawMode, setDrawMode] = useState<'polygon' | 'zone_poblado' | 'zone_verde' | null>(null);
@@ -50,7 +51,8 @@ export default function Dashboard({ id }: { id?: string }) {
     fetch(`${API}/missions/${missionId}`).then(r => r.json()).then(data => {
       setMission(data);
       setShareUrl(`${window.location.origin}/searcher/${missionId}`);
-      setSectors(data.sectors.map((s: any) => ({ ...s, bounds: JSON.parse(s.bounds), center: JSON.parse(s.center) })));
+      const parsed = data.sectors.map((s: any) => ({ ...s, bounds: JSON.parse(s.bounds), center: JSON.parse(s.center) }));
+      setSectors(assignSectorColors(parsed));
       setSearchers(data.searchers);
     }).catch(() => {});
   }
@@ -61,7 +63,15 @@ export default function Dashboard({ id }: { id?: string }) {
     const buscando = sectors.filter(s => s.status === 'buscando').length;
     const revisado = sectors.filter(s => s.status === 'revisado').length;
     setStats({ total, pendiente, buscando, revisado });
-  }, [sectors]);
+    const counts: { [id: string]: number } = {};
+    for (const sc of searchers) {
+      if (sc.lat != null && sc.lng != null) {
+        const sec = getSectorAtPoint(sectors, sc.lat, sc.lng);
+        if (sec) counts[sec.id] = (counts[sec.id] || 0) + 1;
+      }
+    }
+    setSectorCounts(counts);
+  }, [sectors, searchers]);
 
   const handleWizardState = useCallback((state: {
     step: number, region?: string, commune?: string, editing?: boolean,
@@ -190,8 +200,23 @@ export default function Dashboard({ id }: { id?: string }) {
           </span>
         ))}
       </div>
-      <div style={{ height: '60vh', border: '2px solid #1e3a5f', borderRadius: '8px', overflow: 'hidden' }}>
-        <MapView polygon={mission?.polygon} sectors={sectors} searchers={searchers.filter(s => s.lat)} subZonesOverlay={mission?.sub_zones} />
+      <div class="mission-map-area">
+        <div class="map-container" style={{ flex: 1, border: '2px solid #1e3a5f', borderRadius: '8px', overflow: 'hidden' }}>
+          <MapView polygon={mission?.polygon} sectors={sectors} searchers={searchers.filter(s => s.lat)} subZonesOverlay={mission?.sub_zones} />
+        </div>
+        <div class="sector-card">
+          <h3>Sectores</h3>
+          <div class="sector-list">
+            {sectors.map(s => (
+              <div key={s.id} class="sector-item">
+                <span class="sector-dot" style={{ background: s.sector_color || '#94a3b8' }}></span>
+                <span class="sector-num">#{s.sector_number}</span>
+                <span class="sector-status">{s.status}</span>
+                <span class="sector-searchers">{sectorCounts[s.id] || 0} busc.</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
