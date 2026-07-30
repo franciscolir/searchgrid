@@ -110,6 +110,13 @@ function splitPolygon(pts) {
   }
 }
 
+function splitRecursive(pts, depth = 0, minArea = 5000) {
+  if (depth >= 5 || polygonArea(pts) < minArea || pts.length < 4) return [pts];
+  const halves = splitPolygon(pts);
+  if (halves[0].length < 3 || halves[1].length < 3) return [pts];
+  return [...splitRecursive(halves[0], depth + 1, minArea), ...splitRecursive(halves[1], depth + 1, minArea)];
+}
+
 async function fetchOSM(polygon) {
   try {
     const lats = polygon.map(p => p[0]);
@@ -192,24 +199,37 @@ app.post('/api/missions', async (req, res) => {
       const center = polygonCentroid(pts);
       if (z.type === 'verde') {
         const area = polygonArea(pts);
-        if (area < 10000) {
-          const halves = splitPolygon(pts);
-          for (const h of halves) {
-            if (h.length >= 3) {
-              const center = polygonCentroid(h);
-              sectors.push({
-                id: `verde-${sid++}`,
-                bounds: JSON.stringify([h[0], h[h.length - 1]]),
-                center: JSON.stringify(center),
-                sector_type: 'grid',
-                nodes: JSON.stringify(h),
-              });
+        let resultSectors = [];
+        if (area > 100000) {
+          const pieces = splitRecursive(pts);
+          for (const p of pieces) {
+            if (p.length >= 3) resultSectors.push({ nodes: JSON.stringify(p), center: JSON.stringify(polygonCentroid(p)), bounds: JSON.stringify([p[0], p[p.length - 1]]), sector_type: 'grid' });
+          }
+        } else if (area > 10000) {
+          const target = 50;
+          const cs = Math.max(0.0002, Math.sqrt(area / target) * 0.000009);
+          const lats = pts.map(p => p[0]), lngs = pts.map(p => p[1]);
+          const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+          const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+          for (let lat = minLat; lat < maxLat; lat += cs) {
+            for (let lng = minLng; lng < maxLng; lng += cs) {
+              const clat = +(lat + cs / 2).toFixed(6), clng = +(lng + cs / 2).toFixed(6);
+              if (pointInPolygon([clat, clng], pts)) {
+                resultSectors.push({ bounds: JSON.stringify([[lat, lng], [lat + cs, lng + cs]]), center: JSON.stringify([clat, clng]), sector_type: 'grid' });
+              }
             }
           }
         } else {
-          const g = polygonToSectors(pts, mode, []);
-          for (const s of g) sectors.push({ ...s, id: `grid-${sid++}` });
+          const halves = splitPolygon(pts);
+          for (const h of halves) {
+            if (h.length >= 3) resultSectors.push({ nodes: JSON.stringify(h), center: JSON.stringify(polygonCentroid(h)), bounds: JSON.stringify([h[0], h[h.length - 1]]), sector_type: 'grid' });
+          }
         }
+        if (resultSectors.length > 500) {
+          const ratio = Math.ceil(resultSectors.length / 100);
+          resultSectors = resultSectors.filter((_, i) => i % ratio === 0);
+        }
+        for (const r of resultSectors) sectors.push({ id: `verde-${sid++}`, ...r });
       } else {
         sectors.push({
           id: `zone-${sid++}`,
