@@ -38,7 +38,10 @@ export default function Searcher({ id }: { id?: string }) {
   const [nearby, setNearby] = useState<{ sector: Sector; dist: number }[]>([]);
   const watchId = useRef<number | null>(null);
   const trackingInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const deviceId = getDeviceId();
+  const locationRef = useRef<[number, number] | undefined>();
+  const searcherIdRef = useRef('');
+  locationRef.current = currentLocation;
+  searcherIdRef.current = searcherId;
 
   useEffect(() => {
     fetch(`${API}/missions`).then(r => r.json()).then(setMissions).catch(() => {});
@@ -146,8 +149,10 @@ export default function Searcher({ id }: { id?: string }) {
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
     trackingInterval.current = setInterval(async () => {
-      if (currentLocation && searcherId) {
-        await enqueueOp('location', missionId, searcherId, { type: 'location', lat: currentLocation[0], lng: currentLocation[1] });
+      const loc = locationRef.current;
+      const sid = searcherIdRef.current;
+      if (loc && sid) {
+        await enqueueOp('location', missionId, sid, { type: 'location', lat: loc[0], lng: loc[1] });
         setPendingOps(prev => prev + 1);
       }
     }, 30000);
@@ -156,8 +161,8 @@ export default function Searcher({ id }: { id?: string }) {
 
   async function markSector(sectorId: string) {
     const s = sectors.find(x => x.id === sectorId);
-    if (!s) return;
-    const newStatus = (s.status === 'pendiente' || s.status === 'revisado') ? 'buscando' : 'revisado';
+    if (!s || s.status === 'revisado') return;
+    const newStatus = s.status === 'pendiente' ? 'buscando' : 'revisado';
     setSectors(prev => prev.map(x => x.id === sectorId ? { ...x, status: newStatus as Sector['status'], searched_by: name || searcherId } : x));
     await enqueueOp('sector', missionId, searcherId, { type: 'sector', sectorId, status: newStatus });
     setPendingOps(prev => prev + 1);

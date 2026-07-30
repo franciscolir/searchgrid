@@ -105,13 +105,13 @@ export default function MapView(props: MapViewProps) {
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
+    if (drawPolygonLayer.current) { map.removeLayer(drawPolygonLayer.current); drawPolygonLayer.current = null; }
+    drawMarkers.current.forEach(m => map.removeLayer(m));
+    drawMarkers.current = [];
     if (props.drawPoints && props.drawPoints.length > 0) {
-      if (drawPolygonLayer.current) map.removeLayer(drawPolygonLayer.current);
       drawPolygonLayer.current = L.polygon(props.drawPoints as any, {
         color: '#ef4444', weight: 2, fillOpacity: 0.1, dashArray: '5,10',
       }).addTo(map);
-
-      drawMarkers.current.forEach(m => map.removeLayer(m));
       drawMarkers.current = props.drawPoints.map(p =>
         L.circleMarker(p as any, { radius: 6, color: '#ef4444', fillColor: '#fff', fillOpacity: 1, weight: 2 }).addTo(map)
       );

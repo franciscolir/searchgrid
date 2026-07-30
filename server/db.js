@@ -15,6 +15,8 @@ addColumn('missions', 'mode', 'TEXT NOT NULL DEFAULT \'bosque\'');
 addColumn('missions', 'sub_zones', 'TEXT');
 addColumn('sectors', 'sector_type', 'TEXT NOT NULL DEFAULT \'grid\'');
 addColumn('sectors', 'nodes', 'TEXT');
+addColumn('searchers', 'lat', 'REAL');
+addColumn('searchers', 'lng', 'REAL');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS missions (

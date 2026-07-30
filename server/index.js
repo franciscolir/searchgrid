@@ -178,9 +178,9 @@ app.get('/api/missions/:id', (req, res) => {
   const sectors = db.prepare('SELECT * FROM sectors WHERE mission_id = ?').all(mission.id);
   const { id, title, description, polygon, cell_size, status, created_at } = mission;
   res.json({ id, title, description, polygon, cell_size, status, created_at, mode: mission.mode,
-    sub_zones: JSON.parse(mission.sub_zones || '[]'),
+    sub_zones: JSON.parse(mission.sub_zones || '[]'), zone_count: sectors.length,
     has_keyword: !!mission.require_keyword, searchers,
-    sectors: sectors.map(s => ({ ...s, nodes: s.nodes ? JSON.parse(s.nodes) : undefined })) });
+    sectors: sectors.map(s => ({ ...s, bounds: JSON.parse(s.bounds), center: JSON.parse(s.center), nodes: s.nodes ? JSON.parse(s.nodes) : undefined })) });
 });
 
 app.post('/api/missions', async (req, res) => {
@@ -279,7 +279,7 @@ app.post('/api/missions/:id/join', (req, res) => {
 });
 
 app.get('/api/missions/:id/info', (req, res) => {
-  const m = db.prepare('SELECT id, title, description, require_keyword, status FROM missions WHERE id = ?').get(req.params.id);
+  const m = db.prepare('SELECT id, title, description, require_keyword, mode, status FROM missions WHERE id = ?').get(req.params.id);
   if (!m) return res.status(404).json({ error: 'Mision no encontrada' });
   res.json({ id: m.id, title: m.title, description: m.description, has_keyword: !!m.require_keyword, mode: m.mode, status: m.status });
 });
@@ -304,12 +304,13 @@ app.post('/api/sync', (req, res) => {
     try {
       if (op.type === 'location') {
         db.prepare('INSERT INTO location_updates (searcher_id, lat, lng, timestamp) VALUES (?, ?, ?, ?)').run(deviceId, op.lat, op.lng, op.timestamp);
+        db.prepare('UPDATE searchers SET lat = ?, lng = ? WHERE id = ?').run(op.lat, op.lng, deviceId);
         io.to(`mission:${missionId}`).emit('location:updated', { searcherId: deviceId, lat: op.lat, lng: op.lng, timestamp: op.timestamp });
         results.push({ ok: true, op });
       } else if (op.type === 'sector') {
         db.prepare('UPDATE sectors SET status = ?, searched_by = ?, timestamp = ? WHERE id = ? AND mission_id = ?').run(op.status, deviceId, op.timestamp, op.sectorId, missionId);
         db.prepare('INSERT INTO searched_zones (searcher_id, mission_id, sector_id, timestamp) VALUES (?, ?, ?, ?)').run(deviceId, missionId, op.sectorId, op.timestamp);
-        io.to(`mission:${missionId}`).emit('sector:updated', { searcherId: deviceId, sectorId: op.sectorId, status: op.status, timestamp: op.timestamp });
+        io.to(`mission:${missionId}`).emit('sector:updated', { searchedBy: deviceId, sectorId: op.sectorId, status: op.status, timestamp: op.timestamp });
         results.push({ ok: true, op });
       }
     } catch (e) {
